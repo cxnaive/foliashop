@@ -1,0 +1,1050 @@
+# =============================
+# FoliaShop - 系统商店与扭蛋插件
+# =============================
+# 作者: FoliaShop Team
+# 版本: 1.0.0
+# 支持: Folia 1.20.1+
+# 依赖: XConomy (经济), CraftEngine (可选，用于自定义物品)
+
+# =============================
+# 数据库设置
+# =============================
+database:
+  # 数据库类型: mysql 或 h2
+  # - h2: 本地文件数据库，适合单服务器，无需额外配置
+  # - mysql: 远程数据库，适合多服务器共享数据
+  type: h2
+
+  # MySQL 设置（仅当 type 为 mysql 时有效）
+  mysql:
+    host: localhost
+    port: 3306
+    database: foliashop
+    username: root
+    password: password
+    pool-size: 10
+
+  # H2 设置（本地文件数据库）
+  h2:
+    filename: foliashop
+
+# =============================
+# 经济系统设置
+# =============================
+economy:
+  # 是否启用经济功能（需要XConomy插件）
+  enabled: true
+  # 货币显示名称
+  currency-name: "金币"
+  # 货币显示格式
+  # 可用变量: {amount} = 金额, {currency} = 货币名称
+  currency-format: "{amount} {currency}"
+
+# =============================
+# 系统商店设置
+# =============================
+shop:
+  # 是否启用商店
+  enabled: true
+  # 商店名称
+  title: "系统商店"
+  # 是否允许玩家出售物品给系统
+  allow-sell: true
+  # 出售价格折扣（玩家出售给系统的价格 = 购买价格 × 此系数）
+  sell-discount: 0.7
+
+  # =============================
+  # 系统回收设置
+  # =============================
+  sell-system:
+    # 是否启用系统回收功能（/shop sell 命令）
+    enabled: true
+    # 回收模式:
+    # - SHOP_ONLY: 只回收商店中已定义的物品（按商店配置的sell-price）
+    # - CONFIG_ONLY: 只回收下方custom-items中定义的物品
+    # - ALL: 同时支持SHOP_ONLY和CONFIG_ONLY的物品回收
+    mode: "ALL"
+    # 回收物品是否增加商店库存
+    # true: 玩家出售物品给系统时，商店库存会增加（相当于玩家把物品卖回给商店）
+    # false: 玩家出售物品给系统时，商店库存不会增加（系统回收销毁物品）
+    add-stock-on-sell: false
+    # 自定义回收物品列表（当 mode 为 CONFIG_ONLY 或 ALL 时使用）
+    # 格式: "物品ID: 回收价格"
+    # 支持原版物品: "minecraft:xxx"
+    # 支持CraftEngine物品: "命名空间:物品ID"
+    custom-items:
+      # 基础材料
+      minecraft:cobblestone: 0.5
+      minecraft:stone: 1.0
+      minecraft:dirt: 0.1
+      minecraft:sand: 0.3
+      minecraft:gravel: 0.3
+      # 木材
+      minecraft:oak_log: 2.0
+      minecraft:spruce_log: 2.0
+      minecraft:birch_log: 2.0
+      minecraft:jungle_log: 2.5
+      minecraft:acacia_log: 2.5
+      minecraft:dark_oak_log: 3.0
+      # 农作物
+      minecraft:wheat: 1.5
+      minecraft:carrot: 1.5
+      minecraft:potato: 1.5
+      minecraft:beetroot: 2.0
+      minecraft:pumpkin: 5.0
+      minecraft:melon: 4.0
+      # 矿物
+      minecraft:coal: 8.0
+      minecraft:raw_iron: 15.0
+      minecraft:raw_copper: 10.0
+      minecraft:raw_gold: 25.0
+      minecraft:redstone: 3.0
+      minecraft:lapis_lazuli: 6.0
+      minecraft:diamond: 80.0
+      minecraft:emerald: 50.0
+      # 怪物掉落
+      minecraft:rotten_flesh: 0.5
+      minecraft:bone: 2.0
+      minecraft:string: 3.0
+      minecraft:gunpowder: 5.0
+      minecraft:spider_eye: 4.0
+      minecraft:ender_pearl: 20.0
+      minecraft:blaze_rod: 15.0
+      minecraft:ghast_tear: 30.0
+
+  # 是否记录所有交易日志到数据库
+  log-transactions: true
+  # 商品刷新间隔（分钟，0表示不自动刷新）
+  refresh-interval: 0
+  # 玩家每日购买限制（0表示无限制）
+  daily-buy-limit: 0
+
+  # =============================
+  # 商品分类设置
+  # =============================
+  # slot: GUI中的位置 (9-17 第一行, 18-26 第二行, etc)
+  categories:
+    building:
+      name: "建筑材料"
+      icon: "minecraft:bricks"
+      slot: 10
+    tools:
+      name: "工具装备"
+      icon: "minecraft:diamond_pickaxe"
+      slot: 12
+    food:
+      name: "食物补给"
+      icon: "minecraft:cooked_beef"
+      slot: 14
+    minerals:
+      name: "矿物资源"
+      icon: "minecraft:diamond"
+      slot: 16
+    farming:
+      name: "农业用品"
+      icon: "minecraft:wheat"
+      slot: 19
+    misc:
+      name: "杂项物品"
+      icon: "minecraft:chest"
+      slot: 21
+    combat:
+      name: "战斗装备"
+      icon: "minecraft:diamond_sword"
+      slot: 23
+    redstone:
+      name: "红石材料"
+      icon: "minecraft:redstone"
+      slot: 25
+
+  # =============================
+  # 商店商品列表
+  # =============================
+  # 配置说明:
+  # - item: 物品ID，支持 "minecraft:xxx" 或 "ce_namespace:item_id"
+  # - buy-price: 购买价格，0或负数表示不可购买
+  # - sell-price: 出售价格，0或负数表示不可出售
+  # - stock: 库存数量，-1表示无限库存
+  # - category: 所属分类ID
+  # - slot: 在分类GUI中的位置
+  items:
+    # ========== 建筑材料 ==========
+    stone:
+      item: "minecraft:stone"
+      buy-price: 2.0
+      sell-price: 1.0
+      stock: -1
+      category: "building"
+      slot: 10
+    cobblestone:
+      item: "minecraft:cobblestone"
+      buy-price: 1.0
+      sell-price: 0.5
+      stock: -1
+      category: "building"
+      slot: 11
+    granite:
+      item: "minecraft:granite"
+      buy-price: 2.0
+      sell-price: 1.0
+      stock: -1
+      category: "building"
+      slot: 12
+    diorite:
+      item: "minecraft:diorite"
+      buy-price: 2.0
+      sell-price: 1.0
+      stock: -1
+      category: "building"
+      slot: 13
+    andesite:
+      item: "minecraft:andesite"
+      buy-price: 2.0
+      sell-price: 1.0
+      stock: -1
+      category: "building"
+      slot: 14
+    oak_planks:
+      item: "minecraft:oak_planks"
+      buy-price: 3.0
+      sell-price: 1.5
+      stock: -1
+      category: "building"
+      slot: 15
+    spruce_planks:
+      item: "minecraft:spruce_planks"
+      buy-price: 3.0
+      sell-price: 1.5
+      stock: -1
+      category: "building"
+      slot: 16
+    glass:
+      item: "minecraft:glass"
+      buy-price: 5.0
+      sell-price: 2.5
+      stock: -1
+      category: "building"
+      slot: 19
+    white_wool:
+      item: "minecraft:white_wool"
+      buy-price: 4.0
+      sell-price: 2.0
+      stock: -1
+      category: "building"
+      slot: 20
+    terracotta:
+      item: "minecraft:terracotta"
+      buy-price: 8.0
+      sell-price: 4.0
+      stock: -1
+      category: "building"
+      slot: 21
+    brick:
+      item: "minecraft:brick"
+      buy-price: 10.0
+      sell-price: 5.0
+      stock: -1
+      category: "building"
+      slot: 22
+    obsidian:
+      item: "minecraft:obsidian"
+      buy-price: 50.0
+      sell-price: 25.0
+      stock: 1000
+      category: "building"
+      slot: 23
+
+    # ========== 工具装备 ==========
+    wooden_pickaxe:
+      item: "minecraft:wooden_pickaxe"
+      buy-price: 15.0
+      sell-price: 0
+      stock: -1
+      category: "tools"
+      slot: 10
+    stone_pickaxe:
+      item: "minecraft:stone_pickaxe"
+      buy-price: 30.0
+      sell-price: 0
+      stock: -1
+      category: "tools"
+      slot: 11
+    iron_pickaxe:
+      item: "minecraft:iron_pickaxe"
+      buy-price: 150.0
+      sell-price: 30.0
+      stock: -1
+      category: "tools"
+      slot: 12
+    golden_pickaxe:
+      item: "minecraft:golden_pickaxe"
+      buy-price: 100.0
+      sell-price: 20.0
+      stock: -1
+      category: "tools"
+      slot: 13
+    diamond_pickaxe:
+      item: "minecraft:diamond_pickaxe"
+      buy-price: 800.0
+      sell-price: 160.0
+      stock: 100
+      category: "tools"
+      slot: 14
+    netherite_pickaxe:
+      item: "minecraft:netherite_pickaxe"
+      buy-price: 2500.0
+      sell-price: 500.0
+      stock: 50
+      category: "tools"
+      slot: 15
+    iron_sword:
+      item: "minecraft:iron_sword"
+      buy-price: 120.0
+      sell-price: 24.0
+      stock: -1
+      category: "combat"
+      slot: 10
+    diamond_sword:
+      item: "minecraft:diamond_sword"
+      buy-price: 700.0
+      sell-price: 140.0
+      stock: 100
+      category: "combat"
+      slot: 11
+    shield:
+      item: "minecraft:shield"
+      buy-price: 200.0
+      sell-price: 40.0
+      stock: -1
+      category: "combat"
+      slot: 12
+    bow:
+      item: "minecraft:bow"
+      buy-price: 80.0
+      sell-price: 16.0
+      stock: -1
+      category: "combat"
+      slot: 13
+    arrow:
+      item: "minecraft:arrow"
+      buy-price: 5.0
+      sell-price: 1.0
+      stock: -1
+      category: "combat"
+      slot: 14
+
+    # ========== 食物补给 ==========
+    bread:
+      item: "minecraft:bread"
+      buy-price: 15.0
+      sell-price: 5.0
+      stock: -1
+      category: "food"
+      slot: 10
+    cooked_porkchop:
+      item: "minecraft:cooked_porkchop"
+      buy-price: 25.0
+      sell-price: 8.0
+      stock: -1
+      category: "food"
+      slot: 11
+    cooked_beef:
+      item: "minecraft:cooked_beef"
+      buy-price: 30.0
+      sell-price: 10.0
+      stock: -1
+      category: "food"
+      slot: 12
+    cooked_chicken:
+      item: "minecraft:cooked_chicken"
+      buy-price: 20.0
+      sell-price: 6.0
+      stock: -1
+      category: "food"
+      slot: 13
+    golden_carrot:
+      item: "minecraft:golden_carrot"
+      buy-price: 150.0
+      sell-price: 0
+      stock: 500
+      category: "food"
+      slot: 14
+    golden_apple:
+      item: "minecraft:golden_apple"
+      buy-price: 500.0
+      sell-price: 0
+      stock: 100
+      category: "food"
+      slot: 15
+    enchanted_golden_apple:
+      item: "minecraft:enchanted_golden_apple"
+      buy-price: 5000.0
+      sell-price: 0
+      stock: 10
+      category: "food"
+      slot: 16
+    foodpack_taco:
+      item: "ax_food_pack:taco"
+      buy-price: 5000.0
+      sell-price: 0
+      stock: 10
+      category: "food"
+      slot: 19
+
+    # ========== 矿物资源 ==========
+    coal:
+      item: "minecraft:coal"
+      buy-price: 15.0
+      sell-price: 8.0
+      stock: -1
+      category: "minerals"
+      slot: 10
+    iron_ingot:
+      item: "minecraft:iron_ingot"
+      buy-price: 50.0
+      sell-price: 25.0
+      stock: -1
+      category: "minerals"
+      slot: 11
+    copper_ingot:
+      item: "minecraft:copper_ingot"
+      buy-price: 30.0
+      sell-price: 15.0
+      stock: -1
+      category: "minerals"
+      slot: 12
+    gold_ingot:
+      item: "minecraft:gold_ingot"
+      buy-price: 100.0
+      sell-price: 50.0
+      stock: -1
+      category: "minerals"
+      slot: 13
+    redstone:
+      item: "minecraft:redstone"
+      buy-price: 10.0
+      sell-price: 5.0
+      stock: -1
+      category: "minerals"
+      slot: 14
+    lapis_lazuli:
+      item: "minecraft:lapis_lazuli"
+      buy-price: 20.0
+      sell-price: 10.0
+      stock: -1
+      category: "minerals"
+      slot: 15
+    diamond:
+      item: "minecraft:diamond"
+      buy-price: 300.0
+      sell-price: 150.0
+      stock: 500
+      category: "minerals"
+      slot: 16
+    emerald:
+      item: "minecraft:emerald"
+      buy-price: 200.0
+      sell-price: 100.0
+      stock: -1
+      category: "minerals"
+      slot: 19
+    netherite_ingot:
+      item: "minecraft:netherite_ingot"
+      buy-price: 2000.0
+      sell-price: 1000.0
+      stock: 100
+      category: "minerals"
+      slot: 20
+
+    # ========== 农业用品 ==========
+    wheat_seeds:
+      item: "minecraft:wheat_seeds"
+      buy-price: 2.0
+      sell-price: 1.0
+      stock: -1
+      category: "farming"
+      slot: 10
+    wheat:
+      item: "minecraft:wheat"
+      buy-price: 8.0
+      sell-price: 4.0
+      stock: -1
+      category: "farming"
+      slot: 11
+    carrot:
+      item: "minecraft:carrot"
+      buy-price: 8.0
+      sell-price: 4.0
+      stock: -1
+      category: "farming"
+      slot: 12
+    potato:
+      item: "minecraft:potato"
+      buy-price: 8.0
+      sell-price: 4.0
+      stock: -1
+      category: "farming"
+      slot: 13
+    beetroot_seeds:
+      item: "minecraft:beetroot_seeds"
+      buy-price: 3.0
+      sell-price: 1.5
+      stock: -1
+      category: "farming"
+      slot: 14
+    pumpkin_seeds:
+      item: "minecraft:pumpkin_seeds"
+      buy-price: 5.0
+      sell-price: 2.5
+      stock: -1
+      category: "farming"
+      slot: 15
+    melon_seeds:
+      item: "minecraft:melon_seeds"
+      buy-price: 5.0
+      sell-price: 2.5
+      stock: -1
+      category: "farming"
+      slot: 16
+    sugar_cane:
+      item: "minecraft:sugar_cane"
+      buy-price: 6.0
+      sell-price: 3.0
+      stock: -1
+      category: "farming"
+      slot: 19
+    cactus:
+      item: "minecraft:cactus"
+      buy-price: 6.0
+      sell-price: 3.0
+      stock: -1
+      category: "farming"
+      slot: 20
+    bamboo:
+      item: "minecraft:bamboo"
+      buy-price: 4.0
+      sell-price: 2.0
+      stock: -1
+      category: "farming"
+      slot: 21
+    oak_sapling:
+      item: "minecraft:oak_sapling"
+      buy-price: 5.0
+      sell-price: 2.5
+      stock: -1
+      category: "farming"
+      slot: 22
+    bone_meal:
+      item: "minecraft:bone_meal"
+      buy-price: 10.0
+      sell-price: 5.0
+      stock: -1
+      category: "farming"
+      slot: 23
+
+    # ========== 杂项物品 ==========
+    stick:
+      item: "minecraft:stick"
+      buy-price: 2.0
+      sell-price: 1.0
+      stock: -1
+      category: "misc"
+      slot: 10
+    string_item:
+      item: "minecraft:string"
+      buy-price: 15.0
+      sell-price: 7.5
+      stock: -1
+      category: "misc"
+      slot: 11
+    feather:
+      item: "minecraft:feather"
+      buy-price: 8.0
+      sell-price: 4.0
+      stock: -1
+      category: "misc"
+      slot: 12
+    leather:
+      item: "minecraft:leather"
+      buy-price: 25.0
+      sell-price: 12.5
+      stock: -1
+      category: "misc"
+      slot: 13
+    paper:
+      item: "minecraft:paper"
+      buy-price: 5.0
+      sell-price: 2.5
+      stock: -1
+      category: "misc"
+      slot: 14
+    book:
+      item: "minecraft:book"
+      buy-price: 30.0
+      sell-price: 15.0
+      stock: -1
+      category: "misc"
+      slot: 15
+    name_tag:
+      item: "minecraft:name_tag"
+      buy-price: 100.0
+      sell-price: 0
+      stock: 100
+      category: "misc"
+      slot: 16
+    saddle:
+      item: "minecraft:saddle"
+      buy-price: 300.0
+      sell-price: 0
+      stock: 50
+      category: "misc"
+      slot: 19
+    lead:
+      item: "minecraft:lead"
+      buy-price: 50.0
+      sell-price: 25.0
+      stock: -1
+      category: "misc"
+      slot: 20
+    ender_pearl:
+      item: "minecraft:ender_pearl"
+      buy-price: 100.0
+      sell-price: 50.0
+      stock: 200
+      category: "misc"
+      slot: 21
+    blaze_rod:
+      item: "minecraft:blaze_rod"
+      buy-price: 80.0
+      sell-price: 40.0
+      stock: 300
+      category: "misc"
+      slot: 22
+    slime_ball:
+      item: "minecraft:slime_ball"
+      buy-price: 40.0
+      sell-price: 20.0
+      stock: -1
+      category: "misc"
+      slot: 23
+    prismarine_shard:
+      item: "minecraft:prismarine_shard"
+      buy-price: 60.0
+      sell-price: 30.0
+      stock: 500
+      category: "misc"
+      slot: 24
+    heart_of_the_sea:
+      item: "minecraft:heart_of_the_sea"
+      buy-price: 2000.0
+      sell-price: 0
+      stock: 20
+      category: "misc"
+      slot: 25
+
+    # ========== 红石材料 ==========
+    redstone_torch:
+      item: "minecraft:redstone_torch"
+      buy-price: 15.0
+      sell-price: 7.5
+      stock: -1
+      category: "redstone"
+      slot: 10
+    repeater:
+      item: "minecraft:repeater"
+      buy-price: 50.0
+      sell-price: 25.0
+      stock: -1
+      category: "redstone"
+      slot: 11
+    comparator:
+      item: "minecraft:comparator"
+      buy-price: 80.0
+      sell-price: 40.0
+      stock: -1
+      category: "redstone"
+      slot: 12
+    piston:
+      item: "minecraft:piston"
+      buy-price: 80.0
+      sell-price: 40.0
+      stock: -1
+      category: "redstone"
+      slot: 13
+    sticky_piston:
+      item: "minecraft:sticky_piston"
+      buy-price: 120.0
+      sell-price: 60.0
+      stock: -1
+      category: "redstone"
+      slot: 14
+    observer:
+      item: "minecraft:observer"
+      buy-price: 100.0
+      sell-price: 50.0
+      stock: -1
+      category: "redstone"
+      slot: 15
+    hopper:
+      item: "minecraft:hopper"
+      buy-price: 150.0
+      sell-price: 75.0
+      stock: -1
+      category: "redstone"
+      slot: 16
+    dropper:
+      item: "minecraft:dropper"
+      buy-price: 40.0
+      sell-price: 20.0
+      stock: -1
+      category: "redstone"
+      slot: 19
+    dispenser:
+      item: "minecraft:dispenser"
+      buy-price: 60.0
+      sell-price: 30.0
+      stock: -1
+      category: "redstone"
+      slot: 20
+    note_block:
+      item: "minecraft:note_block"
+      buy-price: 50.0
+      sell-price: 25.0
+      stock: -1
+      category: "redstone"
+      slot: 21
+    daylight_detector:
+      item: "minecraft:daylight_detector"
+      buy-price: 100.0
+      sell-price: 50.0
+      stock: -1
+      category: "redstone"
+      slot: 22
+    tripwire_hook:
+      item: "minecraft:tripwire_hook"
+      buy-price: 30.0
+      sell-price: 15.0
+      stock: -1
+      category: "redstone"
+      slot: 23
+
+# =============================
+# 扭蛋系统设置
+# =============================
+gacha:
+  # 是否启用扭蛋
+  enabled: true
+  # 扭蛋机列表
+  machines:
+    # ========== 普通扭蛋机 ==========
+    normal:
+      name: "<green>普通扭蛋机"
+      description:
+        - "<gray>花费 <yellow>100金币 <gray>抽取一次"
+        - "<gray>有机会获得稀有物品！"
+        - ""
+        - "<green>✦ 单抽: 100金币"
+        - "<green>✦ 10连抽: 1000金币"
+      icon: "minecraft:chest"
+      # 每次抽奖价格
+      cost: 100.0
+      # 单抽动画时长（秒）
+      animation-duration: 3
+      # 10连抽动画时长（秒），不配置则默认为单抽的3倍
+      animation-duration-ten: 8
+      # 是否广播稀有奖品
+      broadcast-rare: true
+      # 稀有度阈值（低于此概率的奖品会广播）
+      broadcast-threshold: 0.05
+      # 扭蛋机在选择界面的位置（可选，0-26）
+      # 0 = 自动分配（默认从slot 10开始，间隔2格）
+      # 手动设置：slot 9-17 是中间行，避开边框（第1、9列和上下两行）
+      # slot: 10
+      # 保底规则（可选）
+      # 可配置多段保底，当抽奖次数达到指定值时，强制获得概率小于等于max-probability的奖品
+      # 触发保底后计数重置为0
+      # 示例配置：
+      # pity-rules:
+      #   - count: 10
+      #     max-probability: 0.20   # 每10次至少出1个精良+奖品
+      #   - count: 50
+      #     max-probability: 0.05   # 每50次至少出1个史诗+奖品
+
+      # 奖品列表
+      rewards:
+        # 普通奖品 (概率 > 10%)
+        - id: "common_cobblestone"
+          item: "minecraft:cobblestone"
+          amount: 64
+          probability: 0.15
+          display-name: "<white>一堆圆石"
+        - id: "common_oak_log"
+          item: "minecraft:oak_log"
+          amount: 32
+          probability: 0.12
+          display-name: "<white>橡木原木"
+        - id: "common_coal"
+          item: "minecraft:coal"
+          amount: 16
+          probability: 0.10
+          display-name: "<white>煤炭"
+        # 不常见奖品 (5% < 概率 <= 10%)
+        - id: "uncommon_iron"
+          item: "minecraft:iron_ingot"
+          amount: 8
+          probability: 0.08
+          display-name: "<green>铁锭礼包"
+        - id: "uncommon_gold"
+          item: "minecraft:gold_ingot"
+          amount: 4
+          probability: 0.06
+          display-name: "<green>金锭礼包"
+        # 稀有奖品 (2% < 概率 <= 5%)
+        - id: "rare_diamond"
+          item: "minecraft:diamond"
+          amount: 3
+          probability: 0.04
+          display-name: "<blue>钻石礼包"
+          broadcast: true
+        - id: "rare_emerald"
+          item: "minecraft:emerald"
+          amount: 8
+          probability: 0.03
+          display-name: "<blue>绿宝石礼包"
+          broadcast: true
+        # 史诗奖品 (概率 <= 2%)
+        - id: "epic_netherite"
+          item: "minecraft:netherite_ingot"
+          amount: 1
+          probability: 0.015
+          display-name: "<dark_purple>下界合金锭"
+          broadcast: true
+        - id: "epic_enchanted_apple"
+          item: "minecraft:enchanted_golden_apple"
+          amount: 1
+          probability: 0.005
+          display-name: "<light_purple>附魔金苹果"
+          broadcast: true
+
+    # ========== 高级扭蛋机（带多段保底示例）==========
+    premium:
+      name: "<gold>高级扭蛋机"
+      description:
+        - "<gray>花费 <yellow>500金币 <gray>抽取一次"
+        - "<gold>高概率获得稀有物品！"
+        - ""
+        - "<gold>✦ 单抽: 500金币"
+        - "<gold>✦ 10连抽: 5000金币"
+        - "<gold>✦ 多段保底机制："
+        - "  <yellow>每10抽 <gray>必出 <green>精良+ <gray>奖品"
+        - "  <yellow>每30抽 <gray>必出 <blue>稀有+ <gray>奖品"
+        - "  <yellow>每100抽 <gray>必出 <gold>传说 <gray>奖品"
+      icon: "minecraft:ender_chest"
+      cost: 500.0
+      animation-duration: 5
+      animation-duration-ten: 12
+      broadcast-rare: true
+      broadcast-threshold: 0.15
+      # 多段保底规则配置
+      # count: 抽奖次数阈值（每X次触发）
+      # max-probability: 该次保底可获得的最大概率（获得概率<=此值的奖品）
+      pity-rules:
+        - count: 10
+          max-probability: 0.20   # 每10次至少出1个概率<=0.20的奖品（精良）
+        - count: 30
+          max-probability: 0.10   # 每30次至少出1个概率<=0.10的奖品（稀有）
+        - count: 100
+          max-probability: 0.02   # 每100次至少出1个概率<=0.02的奖品（传说）
+
+      rewards:
+        # 普通奖品
+        - id: "p_common_iron_block"
+          item: "minecraft:iron_block"
+          amount: 2
+          probability: 0.18
+          display-name: "<white>铁块"
+        - id: "p_common_gold_block"
+          item: "minecraft:gold_block"
+          amount: 1
+          probability: 0.15
+          display-name: "<white>金块"
+        # 不常见奖品
+        - id: "p_uncommon_diamond_block"
+          item: "minecraft:diamond_block"
+          amount: 1
+          probability: 0.12
+          display-name: "<green>钻石块"
+        - id: "p_uncommon_emerald_block"
+          item: "minecraft:emerald_block"
+          amount: 2
+          probability: 0.10
+          display-name: "<green>绿宝石块"
+        # 稀有奖品
+        - id: "p_rare_netherite"
+          item: "minecraft:netherite_ingot"
+          amount: 2
+          probability: 0.08
+          display-name: "<blue>下界合金礼包"
+          broadcast: true
+        - id: "p_rare_beacon"
+          item: "minecraft:beacon"
+          amount: 1
+          probability: 0.06
+          display-name: "<blue>信标"
+          broadcast: true
+        # 史诗奖品
+        - id: "p_epic_enchanted_apple"
+          item: "minecraft:enchanted_golden_apple"
+          amount: 2
+          probability: 0.04
+          display-name: "<dark_purple>附魔金苹果x2"
+          broadcast: true
+        - id: "p_epic_elytra"
+          item: "minecraft:elytra"
+          amount: 1
+          probability: 0.03
+          display-name: "<dark_purple>鞘翅"
+          broadcast: true
+        # 传说奖品
+        - id: "p_legendary_dragon_egg"
+          item: "minecraft:dragon_egg"
+          amount: 1
+          probability: 0.02
+          display-name: "<gold>龙蛋"
+          broadcast: true
+        - id: "p_legendary_nether_star"
+          item: "minecraft:nether_star"
+          amount: 1
+          probability: 0.02
+          display-name: "<gold>下界之星"
+          broadcast: true
+
+    # ========== 材料扭蛋机（特色示例）==========
+    materials:
+      name: "<aqua>材料扭蛋机"
+      description:
+        - "<gray>花费 <yellow>50金币 <gray>抽取一次"
+        - "<aqua>专出各种建筑材料！"
+      icon: "minecraft:crafting_table"
+      cost: 50.0
+      animation-duration: 2
+      animation-duration-ten: 5
+      broadcast-rare: false
+      broadcast-threshold: 0.01
+
+      rewards:
+        - id: "mat_stone"
+          item: "minecraft:stone"
+          amount: 64
+          probability: 0.20
+          display-name: "石头"
+        - id: "mat_granite"
+          item: "minecraft:granite"
+          amount: 64
+          probability: 0.15
+          display-name: "花岗岩"
+        - id: "mat_diorite"
+          item: "minecraft:diorite"
+          amount: 64
+          probability: 0.15
+          display-name: "闪长岩"
+        - id: "mat_andesite"
+          item: "minecraft:andesite"
+          amount: 64
+          probability: 0.15
+          display-name: "安山岩"
+        - id: "mat_terracotta"
+          item: "minecraft:terracotta"
+          amount: 32
+          probability: 0.12
+          display-name: "陶瓦"
+        - id: "mat_glazed_terracotta"
+          item: "minecraft:white_glazed_terracotta"
+          amount: 16
+          probability: 0.10
+          display-name: "白色带釉陶瓦"
+        - id: "mat_concrete"
+          item: "minecraft:white_concrete"
+          amount: 32
+          probability: 0.08
+          display-name: "白色混凝土"
+        - id: "mat_glowstone"
+          item: "minecraft:glowstone"
+          amount: 16
+          probability: 0.05
+          display-name: "萤石"
+
+# =============================
+# GUI界面设置
+# =============================
+gui:
+  # 界面标题
+  titles:
+    main-menu: "<dark_gray>主菜单"
+    shop: "<green>系统商店"
+    gacha: "<gold>扭蛋中心"
+    gacha-animation: "<yellow>扭蛋抽奖中..."
+    gacha-ten-animation: "<gold>10连抽抽奖中..."
+    gacha-ten-result: "<gold>10连抽结果"
+    gacha-result: "<green>抽奖结果"
+    gacha-history: "<aqua>抽奖记录"
+    sell-menu: "<blue>出售物品"
+
+  # 装饰物品（界面边框和按钮）
+  decoration:
+    border:
+      material: "minecraft:black_stained_glass_pane"
+      name: " "
+    close:
+      material: "minecraft:barrier"
+      name: "<red>关闭"
+    back:
+      material: "minecraft:arrow"
+      name: "<yellow>返回"
+    next-page:
+      material: "minecraft:paper"
+      name: "<green>下一页 »"
+    prev-page:
+      material: "minecraft:paper"
+      name: "<green>« 上一页"
+    confirm:
+      material: "minecraft:lime_wool"
+      name: "<green><bold>✔ 确认"
+    cancel:
+      material: "minecraft:red_wool"
+      name: "<red><bold>✘ 取消"
+
+# =============================
+# 消息设置
+# 支持 MiniMessage 格式:
+# <color> = 颜色, <bold> = 粗体, <italic> = 斜体
+# <reset> = 重置格式
+# =============================
+messages:
+  # 前缀
+  prefix: "<gold>[系统商店] <reset>"
+
+  # 权限和命令
+  no-permission: "<red>你没有权限执行此操作。"
+  player-only: "<red>此命令只能由玩家执行。"
+  config-reloaded: "<green>✔ 配置已重载。"
+
+  # 商店相关
+  insufficient-funds: "<red>余额不足！需要 <yellow>{cost} {currency}"
+  purchase-success: "<green>✔ 成功购买 <white>{item} <yellow>x{amount}<green>，花费 <yellow>{cost} {currency}"
+  sell-success: "<green>✔ 成功出售 <white>{item} <yellow>x{amount}<green>，获得 <yellow>{reward} {currency}"
+  sell-success-batch: "<green>✔ 成功出售 <yellow>{count}<green> 种物品共 <yellow>{total}<green> 个，获得 <yellow>{reward} {currency}"
+  inventory-full: "<red>✘ 背包已满，无法购买物品！"
+  shop-empty: "<red>商店暂无商品。"
+  item-not-found: "<red>物品不存在：{item}"
+  item-out-of-stock: "<red>✘ 物品库存不足！"
+
+  # 扭蛋相关
+  gacha-start: "<yellow>🎰 开始抽奖..."
+  gacha-result: "<green>🎉 恭喜获得：<gold>{item}"
+  gacha-broadcast: "<gold><bold>🎉 恭喜 {player} 从 {machine} 抽中了 {item}！"
+  gacha-cancelled: "<yellow>抽奖已取消，已退还 <gold>{amount} {currency}"
+
+  # 系统相关
+  database-error: "<red>数据库错误，请联系管理员。"
+  feature-disabled: "<red>该功能已被禁用。"

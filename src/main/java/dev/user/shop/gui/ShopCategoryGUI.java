@@ -1,0 +1,182 @@
+package dev.user.shop.gui;
+
+import dev.user.shop.FoliaShopPlugin;
+import dev.user.shop.shop.ShopManager;
+import dev.user.shop.util.ItemUtil;
+import org.bukkit.Material;
+import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class ShopCategoryGUI extends AbstractGUI {
+
+    private int page = 0;
+    private final List<ShopManager.ShopCategory> categories;
+
+    public ShopCategoryGUI(FoliaShopPlugin plugin, Player player) {
+        super(plugin, player, plugin.getShopConfig().getShopTitle(), 54);
+        this.categories = new ArrayList<>(plugin.getShopManager().getAllCategories());
+    }
+
+    @Override
+    protected void initialize() {
+        fillBorder(Material.BLACK_STAINED_GLASS_PANE);
+
+        // 每页显示的分类数量 (排除边框和导航按钮)
+        int itemsPerPage = 28; // 4行 x 7列
+        int startIndex = page * itemsPerPage;
+        int endIndex = Math.min(startIndex + itemsPerPage, categories.size());
+
+        // 显示当前页的分类
+        int slot = 10; // 从第2行第2列开始
+        for (int i = startIndex; i < endIndex; i++) {
+            ShopManager.ShopCategory category = categories.get(i);
+
+            ItemStack icon = ItemUtil.createItemFromKey(plugin, category.getIcon());
+            ItemUtil.setDisplayName(icon, plugin.getShopConfig().convertMiniMessage("<yellow><bold>" + category.getName()));
+
+            // 计算该分类下的商品数量
+            long itemCount = plugin.getShopManager().getItemsByCategory(category.getId()).size();
+
+            ItemUtil.setLore(icon, java.util.Arrays.asList(
+                "§7商品数量: §e" + itemCount,
+                "",
+                "§e点击查看该分类的商品"
+            ));
+
+            // 确保slot在有效范围内且不是边框
+            while (slot < 53 && (slot % 9 == 0 || slot % 9 == 8 || slot < 9 || slot > 44)) {
+                slot++;
+            }
+
+            if (slot < 53) {
+                final int currentSlot = slot;
+                setItem(currentSlot, icon, p -> {
+                    p.closeInventory();
+                    new ShopItemsGUI(plugin, p, category).open();
+                });
+                slot++;
+            }
+        }
+
+        // 计算总页数
+        int totalPages = (categories.size() + itemsPerPage - 1) / itemsPerPage;
+
+        // 动态布局底部按钮（居中显示）
+        // 底部可用槽位: 45-53 (第6行中间7个格子)
+        java.util.List<java.util.function.Consumer<Integer>> buttonSetters = new ArrayList<>();
+
+        // 1. 上一页按钮（如果有）
+        if (page > 0) {
+            buttonSetters.add(targetSlot -> {
+                ItemStack prevBtn = new ItemStack(Material.ARROW);
+                ItemUtil.setDisplayName(prevBtn, "§e§l上一页");
+                ItemUtil.setLore(prevBtn, java.util.List.of("§7点击返回上一页"));
+                setItem(targetSlot, prevBtn, p -> {
+                    page--;
+                    inventory.clear();
+                    actions.clear();
+                    initialize();
+                });
+            });
+        }
+
+        // 2. 交易记录按钮
+        buttonSetters.add(targetSlot -> {
+            ItemStack historyBtn = new ItemStack(Material.BOOK);
+            ItemUtil.setDisplayName(historyBtn, "§b§l交易记录");
+            ItemUtil.setLore(historyBtn, java.util.List.of(
+                "§7点击查看最近20条交易记录",
+                "",
+                "§a绿色 §7= 购买",
+                "§c红色 §7= 出售"
+            ));
+            setItem(targetSlot, historyBtn, p -> {
+                p.closeInventory();
+                new TransactionHistoryGUI(plugin, p, this).open();
+            });
+        });
+
+        // 3. 关闭按钮
+        buttonSetters.add(targetSlot -> {
+            ItemStack closeBtn = new ItemStack(Material.BARRIER);
+            ItemUtil.setDisplayName(closeBtn, "§c§l关闭");
+            setItem(targetSlot, closeBtn, Player::closeInventory);
+        });
+
+        // 4. 返回主菜单按钮
+        buttonSetters.add(targetSlot -> {
+            ItemStack backBtn = new ItemStack(Material.ARROW);
+            ItemUtil.setDisplayName(backBtn, "§e§l返回主菜单");
+            ItemUtil.setLore(backBtn, java.util.List.of("§7点击返回主菜单"));
+            setItem(targetSlot, backBtn, p -> {
+                p.closeInventory();
+                new MainMenuGUI(plugin, p).open();
+            });
+        });
+
+        // 5. 页码指示器
+        buttonSetters.add(targetSlot -> {
+            ItemStack pageInfo = new ItemStack(Material.PAPER);
+            ItemUtil.setDisplayName(pageInfo, "§e§l第 " + (page + 1) + "/" + totalPages + " 页");
+            ItemUtil.setLore(pageInfo, java.util.List.of("§7共 " + categories.size() + " 个分类"));
+            setItem(targetSlot, pageInfo, null);
+        });
+
+        // 6. 出售按钮（如果启用）
+        if (plugin.getShopConfig().isAllowSell() && plugin.getShopConfig().isSellSystemEnabled()) {
+            buttonSetters.add(targetSlot -> {
+                ItemStack sellBtn = new ItemStack(Material.GOLD_INGOT);
+                ItemUtil.setDisplayName(sellBtn, "§6§l出售物品");
+
+                String mode = plugin.getShopConfig().getSellSystemMode();
+                String modeDesc = switch (mode) {
+                    case "SHOP_ONLY" -> "§7模式: §a商店物品回收";
+                    case "CONFIG_ONLY" -> "§7模式: §a系统回收";
+                    case "ALL" -> "§7模式: §a商店+系统回收";
+                    default -> "§7模式: §a商店回收";
+                };
+
+                ItemUtil.setLore(sellBtn, java.util.Arrays.asList(
+                    "§7点击出售背包中的物品",
+                    "",
+                    modeDesc
+                ));
+                setItem(targetSlot, sellBtn, p -> {
+                    p.closeInventory();
+                    new SellGUI(plugin, p).open();
+                });
+            });
+        }
+
+        // 7. 下一页按钮（如果有）
+        if (endIndex < categories.size()) {
+            buttonSetters.add(targetSlot -> {
+                ItemStack nextBtn = new ItemStack(Material.ARROW);
+                ItemUtil.setDisplayName(nextBtn, "§e§l下一页");
+                ItemUtil.setLore(nextBtn, java.util.List.of("§7点击查看更多分类"));
+                setItem(targetSlot, nextBtn, p -> {
+                    page++;
+                    inventory.clear();
+                    actions.clear();
+                    initialize();
+                });
+            });
+        }
+
+        // 计算居中起始位置
+        // 底部可用槽位: 45-53 共9个，但中间7个(46-52)用于按钮
+        int buttonCount = buttonSetters.size();
+        int totalWidth = 7; // 中间可用区域 46-52
+        int baseSlot = 46 + (totalWidth - buttonCount) / 2;
+        // 奇数居中，偶数偏向右边
+        int startSlot = (buttonCount % 2 == 0) ? baseSlot + 1 : baseSlot;
+
+        // 放置按钮
+        for (int i = 0; i < buttonCount; i++) {
+            buttonSetters.get(i).accept(startSlot + i);
+        }
+    }
+}

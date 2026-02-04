@@ -1,0 +1,47 @@
+name: FoliaShop
+version: ${version}
+main: dev.user.shop.FoliaShopPlugin
+api-version: '1.21'
+folia-supported: true
+depend: [XConomy, CraftEngine]
+
+commands:
+  foliashop:
+    description: 系统商店与扭蛋主命令
+    aliases: [fshop, shop, gacha]
+    permission: foliashop.use
+    usage: /fshop <shop|gacha|reload>
+  shop:
+    description: 打开系统商店
+    permission: foliashop.shop.use
+    usage: /shop [分类]
+  gacha:
+    description: 打开扭蛋界面
+    permission: foliashop.gacha.use
+    usage: /gacha [扭蛋机ID]
+
+permissions:
+  foliashop.use:
+    default: true
+    description: 使用基础命令
+  foliashop.shop.use:
+    default: true
+    description: 使用商店功能
+  foliashop.shop.sell:
+    default: true
+    description: 出售物品给系统
+  foliashop.gacha.use:
+    default: true
+    description: 使用扭蛋功能
+  foliashop.admin:
+    default: op
+    description: 管理员权限（重载配置、管理商品和奖池）
+    children:
+      foliashop.shop.admin: true
+      foliashop.gacha.admin: true
+  foliashop.shop.admin:
+    default: op
+    description: 商店管理权限
+  foliashop.gacha.admin:
+    default: op
+    description: 扭蛋管理权限
