@@ -23,6 +23,9 @@ public class GachaPreviewGUI extends AbstractGUI {
 
     @Override
     protected void initialize() {
+        // 确保页码不会小于0
+        if (page < 0) page = 0;
+
         fillBorder(Material.BLACK_STAINED_GLASS_PANE);
 
         List<GachaReward> rewards = machine.getRewards();

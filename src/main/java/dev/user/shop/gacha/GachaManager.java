@@ -47,6 +47,8 @@ public class GachaManager {
             double broadcastThreshold = machineSection.getDouble("broadcast-threshold", 0.05);
             // GUI位置（0-26），默认为0表示自动分配
             int slot = machineSection.getInt("slot", 0);
+            // 是否启用，默认true
+            boolean enabled = machineSection.getBoolean("enabled", true);
 
             // 加载保底规则
             List<PityRule> pityRules = new ArrayList<>();
@@ -61,9 +63,15 @@ public class GachaManager {
                 }
             }
 
+            // 跳过禁用的扭蛋机
+            if (!enabled) {
+                plugin.getLogger().info("扭蛋机 '" + machineId + "' 已禁用，跳过加载");
+                continue;
+            }
+
             GachaMachine machine = new GachaMachine(
                 machineId, name, description, icon, cost,
-                animationDuration, animationDurationTen, broadcastRare, broadcastThreshold, slot, pityRules
+                animationDuration, animationDurationTen, broadcastRare, broadcastThreshold, slot, pityRules, enabled
             );
 
             // 加载奖品
@@ -92,6 +100,12 @@ public class GachaManager {
             }
 
             machines.put(machineId, machine);
+
+            // 检查总概率
+            double totalProb = machine.getTotalProbability();
+            if (Math.abs(totalProb - 1.0) > 0.001) {
+                plugin.getLogger().warning("扭蛋机 '" + machineId + "' 的总概率为 " + String.format("%.2f", totalProb) + "，建议调整为 1.0");
+            }
         }
 
         plugin.getLogger().info("已加载 " + machines.size() + " 个扭蛋机");
@@ -241,10 +255,17 @@ public class GachaManager {
                     newCount = getCurrentCount(conn, playerUuid, machineId, ruleHash) + 1;
                 }
 
-                // 统一使用 MySQL/MariaDB/H2 兼容的语法
-                String sql = "INSERT INTO gacha_pity (player_uuid, machine_id, rule_hash, draw_count, last_pity_reward, last_draw_time) " +
-                            "VALUES (?, ?, ?, ?, ?, ?) " +
-                            "ON DUPLICATE KEY UPDATE draw_count = ?, last_pity_reward = ?, last_draw_time = ?";
+                // 根据数据库类型选择SQL语法
+                boolean isMySQL = plugin.getDatabaseManager().isMySQL();
+                String sql;
+                if (isMySQL) {
+                    sql = "INSERT INTO gacha_pity (player_uuid, machine_id, rule_hash, draw_count, last_pity_reward, last_draw_time) " +
+                          "VALUES (?, ?, ?, ?, ?, ?) " +
+                          "ON DUPLICATE KEY UPDATE draw_count = ?, last_pity_reward = ?, last_draw_time = ?";
+                } else {
+                    sql = "MERGE INTO gacha_pity (player_uuid, machine_id, rule_hash, draw_count, last_pity_reward, last_draw_time) " +
+                          "VALUES (?, ?, ?, ?, ?, ?)";
+                }
                 try (PreparedStatement ps = conn.prepareStatement(sql)) {
                     ps.setString(1, playerUuid.toString());
                     ps.setString(2, machineId);
@@ -252,9 +273,11 @@ public class GachaManager {
                     ps.setInt(4, newCount);
                     ps.setString(5, satisfiedHashes.contains(ruleHash) ? rewardId : null);
                     ps.setLong(6, System.currentTimeMillis());
-                    ps.setInt(7, newCount);
-                    ps.setString(8, satisfiedHashes.contains(ruleHash) ? rewardId : null);
-                    ps.setLong(9, System.currentTimeMillis());
+                    if (isMySQL) {
+                        ps.setInt(7, newCount);
+                        ps.setString(8, satisfiedHashes.contains(ruleHash) ? rewardId : null);
+                        ps.setLong(9, System.currentTimeMillis());
+                    }
                     ps.executeUpdate();
                 }
             }
@@ -280,10 +303,17 @@ public class GachaManager {
                 String rewardIdToRecord = (lastTriggeredRule != null && ruleHash.equals(lastTriggeredRule.getRuleHash()))
                     ? lastRewardId : null;
 
-                // 统一使用 MySQL/MariaDB/H2 兼容的语法
-                String sql = "INSERT INTO gacha_pity (player_uuid, machine_id, rule_hash, draw_count, last_pity_reward, last_draw_time) " +
-                      "VALUES (?, ?, ?, ?, ?, ?) " +
-                      "ON DUPLICATE KEY UPDATE draw_count = ?, last_pity_reward = ?, last_draw_time = ?";
+                // 根据数据库类型选择SQL语法
+                boolean isMySQL = plugin.getDatabaseManager().isMySQL();
+                String sql;
+                if (isMySQL) {
+                    sql = "INSERT INTO gacha_pity (player_uuid, machine_id, rule_hash, draw_count, last_pity_reward, last_draw_time) " +
+                          "VALUES (?, ?, ?, ?, ?, ?) " +
+                          "ON DUPLICATE KEY UPDATE draw_count = ?, last_pity_reward = ?, last_draw_time = ?";
+                } else {
+                    sql = "MERGE INTO gacha_pity (player_uuid, machine_id, rule_hash, draw_count, last_pity_reward, last_draw_time) " +
+                          "VALUES (?, ?, ?, ?, ?, ?)";
+                }
 
                 try (PreparedStatement ps = conn.prepareStatement(sql)) {
                     ps.setString(1, playerUuid.toString());
@@ -292,9 +322,11 @@ public class GachaManager {
                     ps.setInt(4, finalCount);
                     ps.setString(5, rewardIdToRecord);
                     ps.setLong(6, System.currentTimeMillis());
-                    ps.setInt(7, finalCount);
-                    ps.setString(8, rewardIdToRecord);
-                    ps.setLong(9, System.currentTimeMillis());
+                    if (isMySQL) {
+                        ps.setInt(7, finalCount);
+                        ps.setString(8, rewardIdToRecord);
+                        ps.setLong(9, System.currentTimeMillis());
+                    }
 
                     ps.executeUpdate();
                 }

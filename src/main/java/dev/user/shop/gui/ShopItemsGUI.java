@@ -73,11 +73,8 @@ public class ShopItemsGUI extends AbstractGUI {
      * 左键购买1个，Shift+左键购买64个，右键和Shift+右键不处理
      */
     public void handleItemClick(Player player, ShopItem shopItem, ClickType clickType) {
-        plugin.getLogger().info("[ShopDebug] Click detected: " + clickType + " on item " + shopItem.getItemKey());
-
         // 右键和Shift+右键不处理
         if (clickType == ClickType.RIGHT || clickType == ClickType.SHIFT_RIGHT) {
-            plugin.getLogger().info("[ShopDebug] Ignoring right click");
             return;
         }
 
@@ -87,7 +84,6 @@ public class ShopItemsGUI extends AbstractGUI {
             return;
         }
         int amount = (clickType == ClickType.SHIFT_LEFT) ? 64 : 1;
-        plugin.getLogger().info("[ShopDebug] Buying amount: " + amount);
         buyItem(player, shopItem, amount);
     }
 
@@ -265,6 +261,11 @@ public class ShopItemsGUI extends AbstractGUI {
             shopLore.add("§7库存: §a无限");
         } else {
             shopLore.add("§7库存: §e" + shopItem.getStock());
+        }
+
+        // 每日限额信息
+        if (shopItem.hasDailyLimit()) {
+            shopLore.add("§7每日限额: §e" + shopItem.getDailyLimit() + " 个");
         }
 
         shopLore.add("");

@@ -5,7 +5,6 @@ import dev.user.shop.util.ItemUtil;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
 
-import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -35,13 +34,15 @@ public class ShopManager {
         // 加载分类
         loadCategories();
 
-        // 从配置加载商品（同步）
-        loadItemsFromConfig();
+        // 先从数据库异步加载商品，加载完成后再处理配置
+        loadItemsFromDatabaseAsync(() -> {
+            // 数据库加载完成后，从配置加载进行增量更新
+            loadItemsFromConfig();
+            // 重建缓存
+            rebuildItemCache();
 
-        // 从数据库加载商品（异步），以数据库数据为准更新库存等信息
-        loadItemsFromDatabaseAsync();
-
-        plugin.getLogger().info("已加载 " + items.size() + " 个商店商品，" + categories.size() + " 个分类");
+            plugin.getLogger().info("已加载 " + items.size() + " 个商店商品，" + categories.size() + " 个分类");
+        });
     }
 
     /**
@@ -151,19 +152,17 @@ public class ShopManager {
     }
 
     /**
-     * 从配置加载数据库中没有的商品
+     * 从配置加载商品，进行增量更新
+     * - 已有商品：更新价格、每日限额等配置，保留库存
+     * - 新商品：创建并保存到数据库
      */
     private void loadItemsFromConfig() {
         ConfigurationSection section = plugin.getShopConfig().getShopItems();
         if (section == null) return;
 
-        int loadedCount = 0;
+        int newCount = 0;
+        int updatedCount = 0;
         for (String id : section.getKeys(false)) {
-            // 如果数据库中已有该商品，跳过
-            if (items.containsKey(id)) {
-                continue;
-            }
-
             ConfigurationSection itemSection = section.getConfigurationSection(id);
             if (itemSection == null) continue;
 
@@ -177,27 +176,42 @@ public class ShopManager {
             int slot = itemSection.getInt("slot", 0);
             int dailyLimit = itemSection.getInt("daily-limit", 0);
 
-            ShopItem shopItem = new ShopItem(id, itemKey, buyPrice, sellPrice, stock, category, slot, dailyLimit);
-
-            // 创建显示物品
-            ItemStack item = ItemUtil.createItemFromKey(plugin, itemKey);
-            if (item != null) {
-                shopItem.setDisplayItem(item);
+            ShopItem existingItem = items.get(id);
+            if (existingItem != null) {
+                // 已有商品：更新配置（保留数据库中的库存）
+                existingItem.setBuyPrice(buyPrice);
+                existingItem.setSellPrice(sellPrice);
+                existingItem.setCategory(category);
+                existingItem.setSlot(slot);
+                existingItem.setDailyLimit(dailyLimit);
+                // 库存保留数据库值，不覆盖
+                // 更新显示物品（可能配置改了itemKey）
+                ItemStack item = ItemUtil.createItemFromKey(plugin, itemKey);
+                if (item != null) {
+                    existingItem.setDisplayItem(item);
+                }
+                // 同步回数据库
+                saveItem(existingItem);
+                updatedCount++;
+            } else {
+                // 新商品：创建并保存
+                ShopItem shopItem = new ShopItem(id, itemKey, buyPrice, sellPrice, stock, category, slot, dailyLimit);
+                ItemStack item = ItemUtil.createItemFromKey(plugin, itemKey);
+                if (item != null) {
+                    shopItem.setDisplayItem(item);
+                }
+                items.put(id, shopItem);
+                saveItem(shopItem);
+                newCount++;
             }
-
-            items.put(id, shopItem);
-            loadedCount++;
-
-            // 保存到数据库
-            saveItem(shopItem);
         }
 
-        if (loadedCount > 0) {
-            plugin.getLogger().info("从配置加载了 " + loadedCount + " 个新商品到数据库");
+        if (newCount > 0 || updatedCount > 0) {
+            plugin.getLogger().info("从配置同步: 新增 " + newCount + " 个商品, 更新 " + updatedCount + " 个商品");
         }
     }
 
-    private void loadItemsFromDatabaseAsync() {
+    private void loadItemsFromDatabaseAsync(Runnable callback) {
         plugin.getDatabaseQueue().submit("loadShopItems", conn -> {
             // 只在数据库线程中查询数据
             List<Object[]> rawData = new ArrayList<>();
@@ -219,9 +233,8 @@ public class ShopManager {
             }
             return rawData;
         }, rawData -> {
-            // 在主线程中更新物品（CE物品需要在主线程创建）
-            int updatedCount = 0;
-            int newCount = 0;
+            // 在主线程中创建物品（CE物品需要在主线程创建）
+            int count = 0;
             for (Object[] data : rawData) {
                 String id = (String) data[0];
                 String itemKey = (String) data[1];
@@ -232,28 +245,26 @@ public class ShopManager {
                 int slot = (Integer) data[6];
                 int dailyLimit = (Integer) data[7];
 
-                ShopItem existingItem = items.get(id);
-                if (existingItem != null) {
-                    // 更新已有物品的库存（配置优先的价格等信息保留）
-                    existingItem.setStock(stock);
-                    existingItem.setDailyLimit(dailyLimit);
-                    updatedCount++;
-                } else {
-                    // 数据库中有但配置中没有的物品，添加到内存
-                    ShopItem shopItem = new ShopItem(id, itemKey, buyPrice, sellPrice, stock, category, slot, dailyLimit);
-                    ItemStack item = ItemUtil.createItemFromKey(plugin, itemKey);
-                    if (item != null) {
-                        shopItem.setDisplayItem(item);
-                    }
-                    items.put(id, shopItem);
-                    newCount++;
+                ShopItem shopItem = new ShopItem(id, itemKey, buyPrice, sellPrice, stock, category, slot, dailyLimit);
+                ItemStack item = ItemUtil.createItemFromKey(plugin, itemKey);
+                if (item != null) {
+                    shopItem.setDisplayItem(item);
                 }
+                items.put(id, shopItem);
+                count++;
             }
-            plugin.getLogger().info("从数据库同步: 更新了 " + updatedCount + " 个物品库存，添加了 " + newCount + " 个新物品");
-            // 重建缓存
-            rebuildItemCache();
+            plugin.getLogger().info("从数据库加载了 " + count + " 个商品");
+
+            // 执行回调（继续加载配置）
+            if (callback != null) {
+                callback.run();
+            }
         }, error -> {
             plugin.getLogger().warning("从数据库加载商品失败: " + error.getMessage());
+            // 即使失败也继续加载配置
+            if (callback != null) {
+                callback.run();
+            }
         });
     }
 
@@ -299,10 +310,19 @@ public class ShopManager {
 
     public void saveItem(ShopItem item) {
         plugin.getDatabaseQueue().submit("saveShopItem", conn -> {
-            // 统一使用 MySQL/MariaDB/H2 兼容的语法
-            String sql = "INSERT INTO shop_items (id, item_key, buy_price, sell_price, stock, category, slot, enabled, daily_limit) " +
+            boolean isMySQL = plugin.getDatabaseManager().isMySQL();
+
+            String sql;
+            if (isMySQL) {
+                // MySQL/MariaDB 语法
+                sql = "INSERT INTO shop_items (id, item_key, buy_price, sell_price, stock, category, slot, enabled, daily_limit) " +
                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) " +
                       "ON DUPLICATE KEY UPDATE item_key=?, buy_price=?, sell_price=?, stock=?, category=?, slot=?, enabled=?, daily_limit=?";
+            } else {
+                // H2 语法
+                sql = "MERGE INTO shop_items (id, item_key, buy_price, sell_price, stock, category, slot, enabled, daily_limit) " +
+                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            }
 
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setString(1, item.getId());
@@ -314,14 +334,17 @@ public class ShopManager {
                 ps.setInt(7, item.getSlot());
                 ps.setBoolean(8, item.isEnabled());
                 ps.setInt(9, item.getDailyLimit());
-                ps.setString(10, item.getItemKey());
-                ps.setDouble(11, item.getBuyPrice());
-                ps.setDouble(12, item.getSellPrice());
-                ps.setInt(13, item.getStock());
-                ps.setString(14, item.getCategory());
-                ps.setInt(15, item.getSlot());
-                ps.setBoolean(16, item.isEnabled());
-                ps.setInt(17, item.getDailyLimit());
+
+                if (isMySQL) {
+                    ps.setString(10, item.getItemKey());
+                    ps.setDouble(11, item.getBuyPrice());
+                    ps.setDouble(12, item.getSellPrice());
+                    ps.setInt(13, item.getStock());
+                    ps.setString(14, item.getCategory());
+                    ps.setInt(15, item.getSlot());
+                    ps.setBoolean(16, item.isEnabled());
+                    ps.setInt(17, item.getDailyLimit());
+                }
 
                 ps.executeUpdate();
             }
@@ -631,17 +654,25 @@ public class ShopManager {
                 }
 
                 // 4. 更新计数
-                // 统一使用 MySQL/MariaDB/H2 兼容的语法
-                String updateSql = "INSERT INTO daily_limits (player_uuid, item_id, buy_count, last_date) VALUES (?, ?, ?, ?) " +
-                          "ON DUPLICATE KEY UPDATE buy_count = ?, last_date = ?";
+                // 根据数据库类型选择SQL语法
+                boolean isMySQL = plugin.getDatabaseManager().isMySQL();
+                String updateSql;
+                if (isMySQL) {
+                    updateSql = "INSERT INTO daily_limits (player_uuid, item_id, buy_count, last_date) VALUES (?, ?, ?, ?) " +
+                              "ON DUPLICATE KEY UPDATE buy_count = ?, last_date = ?";
+                } else {
+                    updateSql = "MERGE INTO daily_limits (player_uuid, item_id, buy_count, last_date) VALUES (?, ?, ?, ?)";
+                }
 
                 try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
                     ps.setString(1, playerUuid.toString());
                     ps.setString(2, itemId);
                     ps.setInt(3, newCount);
                     ps.setString(4, today);
-                    ps.setInt(5, newCount);
-                    ps.setString(6, today);
+                    if (isMySQL) {
+                        ps.setInt(5, newCount);
+                        ps.setString(6, today);
+                    }
 
                     ps.executeUpdate();
                 }

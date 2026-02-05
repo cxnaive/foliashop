@@ -62,16 +62,10 @@ public class ItemUtil {
             Key itemKey = Key.of(namespace, id);
             CustomItem<ItemStack> customItem = CraftEngineItems.byId(itemKey);
             if (customItem != null) {
-                plugin.getLogger().info("[CE] 找到CE物品: " + namespace + ":" + id);
-                ItemStack item = customItem.buildItemStack(ItemBuildContext.empty(), 1);
-                plugin.getLogger().info("[CE] 成功构建CE物品: " + namespace + ":" + id + " -> " + item.getType());
-                return item;
-            } else {
-                plugin.getLogger().warning("[CE] 未找到CE物品: " + namespace + ":" + id);
+                return customItem.buildItemStack(ItemBuildContext.empty(), 1);
             }
         } catch (Exception e) {
             plugin.getLogger().warning("[CE] 获取CE物品失败 " + namespace + ":" + id + ": " + e.getMessage());
-            e.printStackTrace();
         }
         return null;
     }

@@ -441,6 +441,23 @@ shop:
       stock: 500
       category: "minerals"
       slot: 16
+      daily-limit: 10
+    emerald:
+      item: "minecraft:emerald"
+      buy-price: 200.0
+      sell-price: 100.0
+      stock: -1
+      category: "minerals"
+      slot: 17
+      daily-limit: 20
+    netherite_ingot:
+      item: "minecraft:netherite_ingot"
+      buy-price: 2000.0
+      sell-price: 1000.0
+      stock: 100
+      category: "minerals"
+      slot: 19
+      daily-limit: 3
     emerald:
       item: "minecraft:emerald"
       buy-price: 200.0

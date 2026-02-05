@@ -22,13 +22,14 @@ public class GachaMachine {
     private final int slot; // 在选择界面的位置
     private final List<PityRule> pityRules; // 保底规则列表
     private final List<GachaReward> rewards;
+    private boolean enabled; // 是否启用
 
     private double totalProbability;
     private List<org.bukkit.inventory.ItemStack> cachedAnimationItems;
 
     public GachaMachine(String id, String name, List<String> description, String icon, double cost,
                         int animationDuration, int animationDurationTen, boolean broadcastRare, double broadcastThreshold, int slot,
-                        List<PityRule> pityRules) {
+                        List<PityRule> pityRules, boolean enabled) {
         this.id = id;
         this.name = name;
         this.description = description != null ? description : new ArrayList<>();
@@ -43,6 +44,7 @@ public class GachaMachine {
             .sorted(Comparator.comparingInt(PityRule::getCount).reversed()) // 按次数降序，先检查高保底
             .collect(Collectors.toList()) : new ArrayList<>();
         this.rewards = new ArrayList<>();
+        this.enabled = enabled;
     }
 
     public void addReward(GachaReward reward) {
@@ -107,6 +109,12 @@ public class GachaMachine {
     public List<PityRule> getPityRules() { return pityRules; }
 
     public boolean hasPityRules() { return !pityRules.isEmpty(); }
+
+    public boolean isEnabled() { return enabled; }
+
+    public void setEnabled(boolean enabled) { this.enabled = enabled; }
+
+    public double getTotalProbability() { return totalProbability; }
 
     /**
      * 检查指定计数器是否触发保底

@@ -34,6 +34,9 @@ public class ShopAdminGUI extends AbstractGUI {
     }
 
     private void loadPage() {
+        // 确保页码不会小于0
+        if (currentPage < 0) currentPage = 0;
+
         // 清除之前的物品（保留边框）
         for (int i = 10; i <= 43; i++) {
             if (i % 9 != 0 && i % 9 != 8) {

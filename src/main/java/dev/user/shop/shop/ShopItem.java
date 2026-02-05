@@ -10,7 +10,7 @@ public class ShopItem {
     private double buyPrice;
     private double sellPrice;
     private int stock;
-    private final String category;
+    private String category;
     private int slot;
     private boolean enabled;
     private int dailyLimit; // 每日购买限额，0表示无限制
@@ -60,6 +60,7 @@ public class ShopItem {
     }
 
     public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
 
     public int getSlot() { return slot; }
     public void setSlot(int slot) { this.slot = slot; }
