@@ -123,6 +123,64 @@ public class GachaManager {
         });
     }
 
+    /**
+     * 执行10连抽（带保底计算）
+     * @param machine 扭蛋机
+     * @param counters 当前计数器（会被修改）
+     * @return 包含抽奖结果和满足规则的结果对象
+     */
+    public TenGachaResult performTenGacha(GachaMachine machine, Map<String, Integer> counters) {
+        List<GachaReward> rewards = new ArrayList<>();
+        Set<PityRule> satisfiedRulesSet = new HashSet<>();
+        List<PityRule> allRules = machine.getPityRules();
+
+        for (int i = 0; i < 10; i++) {
+            // 使用保底抽奖
+            GachaMachine.PityResult result = machine.rollWithPity(counters);
+            GachaReward reward = result.reward();
+
+            // 获取奖品满足的所有保底规则
+            List<PityRule> rewardSatisfiedRules = machine.getSatisfiedPityRules(reward);
+            satisfiedRulesSet.addAll(rewardSatisfiedRules);
+
+            // 内存中模拟计数器变化
+            for (PityRule rule : allRules) {
+                String hash = rule.getRuleHash();
+                if (rewardSatisfiedRules.contains(rule)) {
+                    counters.put(hash, 0);
+                } else {
+                    counters.put(hash, counters.getOrDefault(hash, 0) + 1);
+                }
+            }
+
+            rewards.add(reward);
+        }
+
+        // 计算最高稀有度（maxProbability 最小的规则）
+        PityRule highestRule = null;
+        for (PityRule rule : satisfiedRulesSet) {
+            if (highestRule == null || rule.getMaxProbability() < highestRule.getMaxProbability()) {
+                highestRule = rule;
+            }
+        }
+
+        return new TenGachaResult(rewards, new ArrayList<>(satisfiedRulesSet), highestRule);
+    }
+
+    /**
+     * 10连抽结果
+     */
+    public record TenGachaResult(List<GachaReward> rewards, List<PityRule> satisfiedRules, PityRule highestRule) {
+        /**
+         * 获取最高稀有度的百分比显示
+         */
+        public String getHighestRarityPercent() {
+            if (highestRule == null) return null;
+            double prob = highestRule.getMaxProbability();
+            return String.format("%.1f%%", prob * 100);
+        }
+    }
+
     public GachaMachine getMachine(String id) {
         return machines.get(id);
     }
@@ -161,33 +219,42 @@ public class GachaManager {
     /**
      * 更新保底计数
      * @param rules 所有保底规则列表
-     * @param triggeredRuleHash 触发的规则哈希（null表示未触发）
+     * @param satisfiedRules 奖品满足的规则列表（这些规则的计数器重置为0）
      * @param rewardId 奖励ID
      */
-    public void updatePityCounters(UUID playerUuid, String machineId, List<PityRule> rules, String triggeredRuleHash, String rewardId) {
+    public void updatePityCounters(UUID playerUuid, String machineId, List<PityRule> rules, List<PityRule> satisfiedRules, String rewardId) {
         plugin.getDatabaseQueue().submit("updatePityCounters", conn -> {
+            // 构建满足规则的哈希集合，方便快速查找
+            java.util.Set<String> satisfiedHashes = satisfiedRules.stream()
+                .map(PityRule::getRuleHash)
+                .collect(java.util.HashSet::new, java.util.HashSet::add, java.util.HashSet::addAll);
+
             // 为每个规则更新计数
             for (PityRule rule : rules) {
                 String ruleHash = rule.getRuleHash();
                 int newCount;
-                if (ruleHash.equals(triggeredRuleHash)) {
-                    // 触发的规则重置为0
+                if (satisfiedHashes.contains(ruleHash)) {
+                    // 满足条件的规则重置为0
                     newCount = 0;
                 } else {
                     // 其他规则正常+1
                     newCount = getCurrentCount(conn, playerUuid, machineId, ruleHash) + 1;
                 }
 
-                String sql = "MERGE INTO gacha_pity (player_uuid, machine_id, rule_hash, draw_count, last_pity_reward, last_draw_time) " +
-                            "KEY (player_uuid, machine_id, rule_hash) " +
-                            "VALUES (?, ?, ?, ?, ?, ?)";
+                // 统一使用 MySQL/MariaDB/H2 兼容的语法
+                String sql = "INSERT INTO gacha_pity (player_uuid, machine_id, rule_hash, draw_count, last_pity_reward, last_draw_time) " +
+                            "VALUES (?, ?, ?, ?, ?, ?) " +
+                            "ON DUPLICATE KEY UPDATE draw_count = ?, last_pity_reward = ?, last_draw_time = ?";
                 try (PreparedStatement ps = conn.prepareStatement(sql)) {
                     ps.setString(1, playerUuid.toString());
                     ps.setString(2, machineId);
                     ps.setString(3, ruleHash);
                     ps.setInt(4, newCount);
-                    ps.setString(5, ruleHash.equals(triggeredRuleHash) ? rewardId : null);
+                    ps.setString(5, satisfiedHashes.contains(ruleHash) ? rewardId : null);
                     ps.setLong(6, System.currentTimeMillis());
+                    ps.setInt(7, newCount);
+                    ps.setString(8, satisfiedHashes.contains(ruleHash) ? rewardId : null);
+                    ps.setLong(9, System.currentTimeMillis());
                     ps.executeUpdate();
                 }
             }
@@ -213,13 +280,10 @@ public class GachaManager {
                 String rewardIdToRecord = (lastTriggeredRule != null && ruleHash.equals(lastTriggeredRule.getRuleHash()))
                     ? lastRewardId : null;
 
-                String sql = plugin.getDatabaseManager().isMySQL()
-                    ? "INSERT INTO gacha_pity (player_uuid, machine_id, rule_hash, draw_count, last_pity_reward, last_draw_time) " +
+                // 统一使用 MySQL/MariaDB/H2 兼容的语法
+                String sql = "INSERT INTO gacha_pity (player_uuid, machine_id, rule_hash, draw_count, last_pity_reward, last_draw_time) " +
                       "VALUES (?, ?, ?, ?, ?, ?) " +
-                      "ON DUPLICATE KEY UPDATE draw_count = ?, last_pity_reward = ?, last_draw_time = ?"
-                    : "MERGE INTO gacha_pity (player_uuid, machine_id, rule_hash, draw_count, last_pity_reward, last_draw_time) " +
-                      "KEY (player_uuid, machine_id, rule_hash) " +
-                      "VALUES (?, ?, ?, ?, ?, ?)";
+                      "ON DUPLICATE KEY UPDATE draw_count = ?, last_pity_reward = ?, last_draw_time = ?";
 
                 try (PreparedStatement ps = conn.prepareStatement(sql)) {
                     ps.setString(1, playerUuid.toString());
@@ -228,12 +292,9 @@ public class GachaManager {
                     ps.setInt(4, finalCount);
                     ps.setString(5, rewardIdToRecord);
                     ps.setLong(6, System.currentTimeMillis());
-
-                    if (plugin.getDatabaseManager().isMySQL()) {
-                        ps.setInt(7, finalCount);
-                        ps.setString(8, rewardIdToRecord);
-                        ps.setLong(9, System.currentTimeMillis());
-                    }
+                    ps.setInt(7, finalCount);
+                    ps.setString(8, rewardIdToRecord);
+                    ps.setLong(9, System.currentTimeMillis());
 
                     ps.executeUpdate();
                 }

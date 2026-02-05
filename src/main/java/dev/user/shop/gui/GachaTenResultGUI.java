@@ -3,9 +3,8 @@ package dev.user.shop.gui;
 import dev.user.shop.FoliaShopPlugin;
 import dev.user.shop.gacha.GachaMachine;
 import dev.user.shop.gacha.GachaReward;
-import dev.user.shop.gacha.PityRule;
 import dev.user.shop.util.ItemUtil;
-import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
@@ -100,10 +99,10 @@ public class GachaTenResultGUI extends AbstractGUI {
 
         List<String> lore = new ArrayList<>();
         lore.add("");
-        lore.add("§7稀有度: " + reward.getRarityColor() + reward.getRarityName());
+        lore.add("§7稀有度: " + reward.getRarityColor() + reward.getRarityPercent());
         if (claimed) {
             lore.add("§a✓ 已领取");
-            ItemUtil.setDisplayName(display, "§8§m" + ItemUtil.getDisplayName(display));
+            ItemUtil.setDisplayName(display, "§8§m" + reward.getPlainDisplayName());
         } else {
             lore.add("§e点击领取");
         }
@@ -193,8 +192,10 @@ public class GachaTenResultGUI extends AbstractGUI {
             String broadcast = plugin.getShopConfig().getMessage("gacha-broadcast",
                 java.util.Map.of("player", player.getName(),
                                 "machine", machine.getName(),
-                                "item", reward.getDisplayName()));
-            plugin.getServer().broadcast(MiniMessage.miniMessage().deserialize(broadcast));
+                                "item", reward.getPlainDisplayName()));
+            // 处理颜色代码（§ 格式）
+            Component broadcastComponent = ItemUtil.deserializeLegacyMessage(broadcast);
+            plugin.getServer().broadcast(broadcastComponent);
         }
 
         // 记录抽奖
@@ -241,50 +242,17 @@ public class GachaTenResultGUI extends AbstractGUI {
 
                 // 获取保底计数并进行10连抽（带保底）
                 plugin.getGachaManager().getPityCounters(player.getUniqueId(), machine.getId(), counters -> {
-                    java.util.List<GachaReward> newRewards = new java.util.ArrayList<>();
-                    java.util.List<PityRule> triggeredRules = new java.util.ArrayList<>();
-                    java.util.List<PityRule> allRules = machine.getPityRules();
+                    // 使用公共方法执行10连抽
+                    var result = plugin.getGachaManager().performTenGacha(machine, counters);
 
-                    for (int i = 0; i < 10; i++) {
-                        // 使用保底抽奖
-                        GachaMachine.PityResult result = machine.rollWithPity(counters);
-                        GachaReward reward = result.reward();
-                        PityRule triggeredRule = result.triggeredRule();
-
-                        // 记录触发的保底规则
-                        if (triggeredRule != null) {
-                            triggeredRules.add(triggeredRule);
-                            // 重置触发的规则计数器
-                            counters.put(triggeredRule.getRuleHash(), 0);
-                        }
-
-                        // 增加所有规则计数器
-                        for (PityRule rule : allRules) {
-                            String hash = rule.getRuleHash();
-                            counters.put(hash, counters.getOrDefault(hash, 0) + 1);
-                        }
-
-                        newRewards.add(reward);
+                    // 如果获得稀有奖品，发送提示（此时只提示，不更新计数器）
+                    String highestRarity = result.getHighestRarityPercent();
+                    if (highestRarity != null) {
+                        player.sendMessage("§6§l✦ 10连抽获得稀有度<" + highestRarity + ">奖品，保底计数已重置！");
                     }
 
-                    // 批量更新保底计数
-                    GachaReward lastReward = newRewards.get(newRewards.size() - 1);
-                    PityRule lastTriggeredRule = triggeredRules.isEmpty() ? null : triggeredRules.get(triggeredRules.size() - 1);
-                    plugin.getGachaManager().batchUpdatePityCounters(
-                        player.getUniqueId(),
-                        machine.getId(),
-                        allRules,
-                        counters,
-                        lastTriggeredRule,
-                        lastReward.getId()
-                    );
-
-                    // 如果触发保底，发送提示
-                    if (!triggeredRules.isEmpty()) {
-                        player.sendMessage("§6§l✦ 10连抽触发保底机制！");
-                    }
-
-                    new GachaTenAnimationGUI(plugin, player, machine, newRewards).open();
+                    // 打开10连抽动画GUI，传入counters和satisfiedRules用于动画完成后更新
+                    new GachaTenAnimationGUI(plugin, player, machine, result.rewards(), counters, result.satisfiedRules()).open();
                 });
             });
         });

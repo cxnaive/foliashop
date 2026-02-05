@@ -342,6 +342,7 @@ public class DatabaseManager {
     }
 
     public boolean isMySQL() {
-        return plugin.getShopConfig().getDatabaseType().equalsIgnoreCase("mysql");
+        String dbType = plugin.getShopConfig().getDatabaseType().toLowerCase();
+        return dbType.equals("mysql") || dbType.equals("mariadb");
     }
 }

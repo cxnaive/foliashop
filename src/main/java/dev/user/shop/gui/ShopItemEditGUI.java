@@ -137,10 +137,15 @@ public class ShopItemEditGUI extends AbstractGUI {
         ItemUtil.setDisplayName(saveBtn, "§a§l保存并返回");
         ItemUtil.setLore(saveBtn, List.of("§7当前库存: " + getStockDisplay()));
         setItem(25, saveBtn, p -> {
-            plugin.getShopManager().updateItemStock(shopItem.getId(), shopItem.getStock());
-            player.sendMessage("§a已保存 §e" + shopItem.getId() + " §a的库存设置: " + getStockDisplay());
-            p.closeInventory();
-            new ShopAdminGUI(plugin, p).open();
+            plugin.getShopManager().updateItemStock(shopItem.getId(), shopItem.getStock(), success -> {
+                if (success) {
+                    player.sendMessage("§a已保存 §e" + shopItem.getId() + " §a的库存设置: " + getStockDisplay());
+                    p.closeInventory();
+                    new ShopAdminGUI(plugin, p).open();
+                } else {
+                    player.sendMessage("§c保存 §e" + shopItem.getId() + " §c的库存失败，请重试！");
+                }
+            });
         });
 
         // 返回按钮（不保存）

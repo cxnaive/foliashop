@@ -24,7 +24,13 @@ public class ShopAdminGUI extends AbstractGUI {
     @Override
     protected void initialize() {
         fillBorder(Material.BLACK_STAINED_GLASS_PANE);
-        loadPage();
+        // 打开管理界面时先从数据库刷新库存（跨服同步）
+        plugin.getShopManager().refreshAllStocksFromDatabase(count -> {
+            // 在主线程刷新界面
+            plugin.getServer().getGlobalRegionScheduler().execute(plugin, () -> {
+                loadPage();
+            });
+        });
     }
 
     private void loadPage() {

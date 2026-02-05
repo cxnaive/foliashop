@@ -215,4 +215,16 @@ public class ItemUtil {
         }
         return null;
     }
+
+    /**
+     * 将 § 格式颜色代码转换为 Adventure Component
+     * @param message 包含 § 颜色代码的消息
+     * @return Adventure Component 对象
+     */
+    public static net.kyori.adventure.text.Component deserializeLegacyMessage(String message) {
+        if (message == null || message.isEmpty()) {
+            return net.kyori.adventure.text.Component.empty();
+        }
+        return net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection().deserialize(message);
+    }
 }

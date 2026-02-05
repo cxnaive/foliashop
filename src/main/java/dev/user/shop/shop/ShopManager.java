@@ -97,9 +97,12 @@ public class ShopManager {
             if (item.getItemMeta() instanceof org.bukkit.inventory.meta.Damageable damageable) {
                 result = 31 * result + damageable.getDamage();
             }
-            // 考虑显示名称
-            if (item.getItemMeta().hasDisplayName()) {
-                result = 31 * result + item.getItemMeta().getDisplayName().hashCode();
+            // 考虑显示名称（使用新的 Adventure API）
+            var meta = item.getItemMeta();
+            if (meta.hasDisplayName() && meta.displayName() != null) {
+                String displayName = net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
+                    .legacySection().serialize(meta.displayName());
+                result = 31 * result + displayName.hashCode();
             }
         }
         return result;
@@ -256,33 +259,50 @@ public class ShopManager {
 
     /**
      * 更新商品库存（管理界面使用）
+     * @param itemId 商品ID
+     * @param newStock 新库存
+     * @param callback 回调函数，true表示成功（可选）
      */
-    public void updateItemStock(String itemId, int newStock) {
-        ShopItem item = items.get(itemId);
-        if (item == null) return;
-
-        item.setStock(newStock);
-
-        // 更新数据库
+    public void updateItemStock(String itemId, int newStock, java.util.function.Consumer<Boolean> callback) {
+        // 先更新数据库，成功后更新内存
         plugin.getDatabaseQueue().submit("updateStock", conn -> {
             try (PreparedStatement ps = conn.prepareStatement(
                     "UPDATE shop_items SET stock = ? WHERE id = ?")) {
                 ps.setInt(1, newStock);
                 ps.setString(2, itemId);
-                ps.executeUpdate();
+                return ps.executeUpdate() > 0;
             }
-            return null;
+        }, success -> {
+            if (success) {
+                ShopItem item = items.get(itemId);
+                if (item != null) {
+                    item.setStock(newStock);
+                }
+            }
+            if (callback != null) {
+                callback.accept(success);
+            }
+        }, error -> {
+            plugin.getLogger().warning("更新库存失败 [" + itemId + "]: " + error.getMessage());
+            if (callback != null) {
+                callback.accept(false);
+            }
         });
+    }
+
+    /**
+     * 更新商品库存（无回调版本，向后兼容）
+     */
+    public void updateItemStock(String itemId, int newStock) {
+        updateItemStock(itemId, newStock, null);
     }
 
     public void saveItem(ShopItem item) {
         plugin.getDatabaseQueue().submit("saveShopItem", conn -> {
-            String sql = plugin.getDatabaseManager().isMySQL()
-                    ? "INSERT INTO shop_items (id, item_key, buy_price, sell_price, stock, category, slot, enabled, daily_limit) " +
+            // 统一使用 MySQL/MariaDB/H2 兼容的语法
+            String sql = "INSERT INTO shop_items (id, item_key, buy_price, sell_price, stock, category, slot, enabled, daily_limit) " +
                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) " +
-                      "ON DUPLICATE KEY UPDATE item_key=?, buy_price=?, sell_price=?, stock=?, category=?, slot=?, enabled=?, daily_limit=?"
-                    : "MERGE INTO shop_items (id, item_key, buy_price, sell_price, stock, category, slot, enabled, daily_limit) " +
-                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                      "ON DUPLICATE KEY UPDATE item_key=?, buy_price=?, sell_price=?, stock=?, category=?, slot=?, enabled=?, daily_limit=?";
 
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setString(1, item.getId());
@@ -294,17 +314,14 @@ public class ShopManager {
                 ps.setInt(7, item.getSlot());
                 ps.setBoolean(8, item.isEnabled());
                 ps.setInt(9, item.getDailyLimit());
-
-                if (plugin.getDatabaseManager().isMySQL()) {
-                    ps.setString(10, item.getItemKey());
-                    ps.setDouble(11, item.getBuyPrice());
-                    ps.setDouble(12, item.getSellPrice());
-                    ps.setInt(13, item.getStock());
-                    ps.setString(14, item.getCategory());
-                    ps.setInt(15, item.getSlot());
-                    ps.setBoolean(16, item.isEnabled());
-                    ps.setInt(17, item.getDailyLimit());
-                }
+                ps.setString(10, item.getItemKey());
+                ps.setDouble(11, item.getBuyPrice());
+                ps.setDouble(12, item.getSellPrice());
+                ps.setInt(13, item.getStock());
+                ps.setString(14, item.getCategory());
+                ps.setInt(15, item.getSlot());
+                ps.setBoolean(16, item.isEnabled());
+                ps.setInt(17, item.getDailyLimit());
 
                 ps.executeUpdate();
             }
@@ -406,7 +423,7 @@ public class ShopManager {
     }
 
     /**
-     * 从数据库刷新指定商品的库存到内存
+     * 从数据库刷新指定商品的库存到内存（在同一连接中）
      */
     private void refreshItemStockFromDatabase(java.sql.Connection conn, String itemId) throws java.sql.SQLException {
         String selectSql = "SELECT stock FROM shop_items WHERE id = ?";
@@ -421,6 +438,35 @@ public class ShopManager {
                 }
             }
         }
+    }
+
+    /**
+     * 从数据库刷新所有库存到内存（用于跨服同步）
+     * @param callback 回调函数，参数为成功刷新的数量
+     */
+    public void refreshAllStocksFromDatabase(java.util.function.Consumer<Integer> callback) {
+        plugin.getDatabaseQueue().submit("refreshAllStocks", conn -> {
+            String sql = "SELECT id, stock FROM shop_items";
+            int refreshedCount = 0;
+            try (PreparedStatement ps = conn.prepareStatement(sql);
+                 ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String itemId = rs.getString("id");
+                    int stock = rs.getInt("stock");
+                    ShopItem item = items.get(itemId);
+                    if (item != null) {
+                        item.setStock(stock);
+                        refreshedCount++;
+                    }
+                }
+            }
+            return refreshedCount;
+        }, callback, error -> {
+            plugin.getLogger().warning("刷新所有库存失败: " + error.getMessage());
+            if (callback != null) {
+                callback.accept(0);
+            }
+        });
     }
 
     /**
@@ -585,21 +631,17 @@ public class ShopManager {
                 }
 
                 // 4. 更新计数
-                String updateSql = plugin.getDatabaseManager().isMySQL()
-                        ? "INSERT INTO daily_limits (player_uuid, item_id, buy_count, last_date) VALUES (?, ?, ?, ?) " +
-                          "ON DUPLICATE KEY UPDATE buy_count = ?, last_date = ?"
-                        : "MERGE INTO daily_limits (player_uuid, item_id, buy_count, last_date) KEY (player_uuid, item_id) VALUES (?, ?, ?, ?)";
+                // 统一使用 MySQL/MariaDB/H2 兼容的语法
+                String updateSql = "INSERT INTO daily_limits (player_uuid, item_id, buy_count, last_date) VALUES (?, ?, ?, ?) " +
+                          "ON DUPLICATE KEY UPDATE buy_count = ?, last_date = ?";
 
                 try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
                     ps.setString(1, playerUuid.toString());
                     ps.setString(2, itemId);
                     ps.setInt(3, newCount);
                     ps.setString(4, today);
-
-                    if (plugin.getDatabaseManager().isMySQL()) {
-                        ps.setInt(5, newCount);
-                        ps.setString(6, today);
-                    }
+                    ps.setInt(5, newCount);
+                    ps.setString(6, today);
 
                     ps.executeUpdate();
                 }

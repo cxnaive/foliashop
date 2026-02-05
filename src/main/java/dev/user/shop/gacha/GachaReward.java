@@ -1,5 +1,8 @@
 package dev.user.shop.gacha;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.inventory.ItemStack;
 
 public class GachaReward {
@@ -43,14 +46,11 @@ public class GachaReward {
         return 1; // 普通
     }
 
-    public String getRarityName() {
-        return switch (getRarityLevel()) {
-            case 5 -> "传说";
-            case 4 -> "史诗";
-            case 3 -> "稀有";
-            case 2 -> "精良";
-            default -> "普通";
-        };
+    /**
+     * 获取稀有度百分比显示
+     */
+    public String getRarityPercent() {
+        return String.format("%.1f%%", probability * 100);
     }
 
     public String getRarityColor() {
@@ -61,5 +61,34 @@ public class GachaReward {
             case 2 -> "§a"; // 绿色
             default -> "§f"; // 白色
         };
+    }
+
+    /**
+     * 获取显示名称的 Component 对象（兼容 MiniMessage 和传统颜色代码）
+     * 配置中可以使用：<gold>物品名 或 §6物品名
+     */
+    public Component getDisplayNameComponent() {
+        if (displayName == null || displayName.isEmpty()) {
+            return Component.text(itemKey);
+        }
+        // 如果包含传统颜色代码 §，使用 LegacyComponentSerializer
+        if (displayName.contains("§")) {
+            return LegacyComponentSerializer.legacySection().deserialize(displayName);
+        }
+        // 否则尝试使用 MiniMessage
+        try {
+            return MiniMessage.miniMessage().deserialize(displayName);
+        } catch (Exception e) {
+            // 解析失败返回纯文本
+            return Component.text(displayName);
+        }
+    }
+
+    /**
+     * 获取纯文本显示名称（去除颜色代码）
+     */
+    public String getPlainDisplayName() {
+        Component component = getDisplayNameComponent();
+        return net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(component);
     }
 }

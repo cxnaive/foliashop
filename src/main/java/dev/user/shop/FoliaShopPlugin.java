@@ -61,13 +61,18 @@ public class FoliaShopPlugin extends JavaPlugin {
         this.economyManager = new EconomyManager(this);
         economyManager.init();
 
-        // 初始化商店管理器
-        this.shopManager = new ShopManager(this);
+        // 延迟初始化商店和扭蛋管理器（等待 CraftEngine 注册物品）
+        getServer().getGlobalRegionScheduler().runDelayed(this, t -> {
+            // 初始化商店管理器
+            this.shopManager = new ShopManager(this);
 
-        // 初始化扭蛋管理器
-        this.gachaManager = new GachaManager(this);
+            // 初始化扭蛋管理器
+            this.gachaManager = new GachaManager(this);
 
-        // 注册命令
+            getLogger().info("商店和扭蛋系统已加载完成！");
+        }, 2L);
+
+        // 注册命令（提前注册，不影响命令使用）
         registerCommands();
 
         // 注册监听器
@@ -96,6 +101,14 @@ public class FoliaShopPlugin extends JavaPlugin {
             databaseManager.close();
         }
 
+        // 清理商店和扭蛋管理器
+        if (shopManager != null) {
+            shopManager = null;
+        }
+        if (gachaManager != null) {
+            gachaManager = null;
+        }
+
         getLogger().info("FoliaShop 插件已禁用！");
     }
 
@@ -116,8 +129,12 @@ public class FoliaShopPlugin extends JavaPlugin {
     public void reload() {
         reloadConfig();
         shopConfig.load();
-        shopManager.reload();
-        gachaManager.reload();
+        if (shopManager != null) {
+            shopManager.reload();
+        }
+        if (gachaManager != null) {
+            gachaManager.reload();
+        }
     }
 
     public static FoliaShopPlugin getInstance() {
@@ -141,10 +158,20 @@ public class FoliaShopPlugin extends JavaPlugin {
     }
 
     public ShopManager getShopManager() {
+        // 如果延迟加载未完成，先初始化
+        if (shopManager == null) {
+            getLogger().warning("ShopManager 未初始化，正在紧急初始化...");
+            this.shopManager = new ShopManager(this);
+        }
         return shopManager;
     }
 
     public GachaManager getGachaManager() {
+        // 如果延迟加载未完成，先初始化
+        if (gachaManager == null) {
+            getLogger().warning("GachaManager 未初始化，正在紧急初始化...");
+            this.gachaManager = new GachaManager(this);
+        }
         return gachaManager;
     }
 }

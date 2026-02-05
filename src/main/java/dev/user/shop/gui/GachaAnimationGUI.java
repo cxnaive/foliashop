@@ -3,8 +3,9 @@ package dev.user.shop.gui;
 import dev.user.shop.FoliaShopPlugin;
 import dev.user.shop.gacha.GachaMachine;
 import dev.user.shop.gacha.GachaReward;
+import dev.user.shop.gacha.PityRule;
 import dev.user.shop.util.ItemUtil;
-import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
@@ -31,6 +32,8 @@ public class GachaAnimationGUI extends AbstractGUI {
 
     private final GachaMachine machine;
     private final GachaReward finalReward;
+    private final List<PityRule> satisfiedRules; // 奖品满足的所有保底规则（用于重置计数器）
+    private final boolean isPityTriggered; // 是否触发了保底
     private final List<ItemStack> animationItems;
     private final LinkedList<ItemStack> rollingItems; // 滚动物品队列
     private final AtomicInteger animationTick = new AtomicInteger(0);
@@ -45,10 +48,12 @@ public class GachaAnimationGUI extends AbstractGUI {
     private boolean isSlowingDown = false; // 是否正在减速
     private int slowdownStartTick = 0; // 开始减速的tick
 
-    public GachaAnimationGUI(FoliaShopPlugin plugin, Player player, GachaMachine machine, GachaReward finalReward) {
+    public GachaAnimationGUI(FoliaShopPlugin plugin, Player player, GachaMachine machine, GachaReward finalReward, List<PityRule> satisfiedRules, boolean isPityTriggered) {
         super(plugin, player, plugin.getShopConfig().getGUITitle("gacha-animation"), 27);
         this.machine = machine;
         this.finalReward = finalReward;
+        this.satisfiedRules = satisfiedRules;
+        this.isPityTriggered = isPityTriggered;
         this.animationDuration = machine.getAnimationDuration() * 20; // 转换为tick
         this.random = new Random();
 
@@ -222,7 +227,7 @@ public class GachaAnimationGUI extends AbstractGUI {
 
             List<String> lore = new ArrayList<>();
             lore.add("");
-            lore.add("§7稀有度: " + finalReward.getRarityColor() + finalReward.getRarityName());
+            lore.add("§7稀有度: " + finalReward.getRarityColor() + finalReward.getRarityPercent());
             lore.add("");
             lore.add("§a恭喜获得！");
             ItemUtil.setLore(display, lore);
@@ -246,7 +251,35 @@ public class GachaAnimationGUI extends AbstractGUI {
             }
         }, 5L);
 
+        // 动画完成后显示提示
+        if (isPityTriggered) {
+            player.sendMessage("§6§l✦ 触发保底机制！获得稀有度<" + finalReward.getRarityPercent() + ">奖品！");
+        } else if (!satisfiedRules.isEmpty()) {
+            player.sendMessage("§6§l✦ 获得稀有度<" + finalReward.getRarityPercent() + ">奖品！");
+        }
+
+        // 给予奖品并更新保底计数器（此时才更新，确保已抽不能退）
+        giveRewardAndUpdatePity();
+
         showResult();
+    }
+
+    /**
+     * 给予奖品并更新保底计数器
+     */
+    private void giveRewardAndUpdatePity() {
+        // 给予奖品
+        giveReward();
+
+        // 更新保底计数器（此时才更新，防止提前关闭界面刷保底）
+        // 满足的规则（satisfiedRules）计数器重置为0，其他规则+1
+        plugin.getGachaManager().updatePityCounters(
+            player.getUniqueId(),
+            machine.getId(),
+            machine.getPityRules(),
+            satisfiedRules,
+            finalReward.getId()
+        );
     }
 
     /**
@@ -259,9 +292,6 @@ public class GachaAnimationGUI extends AbstractGUI {
     }
 
     private void showResult() {
-        // 给予玩家奖品
-        giveReward();
-
         // 关闭按钮
         addCloseButton(22);
 
@@ -295,15 +325,17 @@ public class GachaAnimationGUI extends AbstractGUI {
 
         // 发送消息
         player.sendMessage(plugin.getShopConfig().getMessage("gacha-result",
-            java.util.Map.of("item", finalReward.getDisplayName())));
+            java.util.Map.of("item", finalReward.getPlainDisplayName())));
 
         // 广播稀有奖品
         if (machine.shouldBroadcast(finalReward)) {
             String broadcast = plugin.getShopConfig().getMessage("gacha-broadcast",
                 java.util.Map.of("player", player.getName(),
                                 "machine", machine.getName(),
-                                "item", finalReward.getDisplayName()));
-            plugin.getServer().broadcast(MiniMessage.miniMessage().deserialize(broadcast));
+                                "item", finalReward.getPlainDisplayName()));
+            // 处理颜色代码（§ 格式）
+            Component broadcastComponent = ItemUtil.deserializeLegacyMessage(broadcast);
+            plugin.getServer().broadcast(broadcastComponent);
         }
 
         // 记录抽奖
@@ -319,20 +351,11 @@ public class GachaAnimationGUI extends AbstractGUI {
         // 确保动画停止
         cancelAnimation();
 
-        // 如果动画未完成（PENDING状态），则退款
-        if (state.compareAndSet(AnimationState.PENDING, AnimationState.CANCELLED)) {
-            refundPlayer();
+        // 如果动画未完成（PENDING状态），强制完成（给予奖品并更新计数器，不退款）
+        // 因为已经扣款，必须完成抽奖，不能退款
+        if (state.get() == AnimationState.PENDING) {
+            finishAnimation();
         }
     }
 
-    /**
-     * 退款给玩家（动画被取消时调用）
-     */
-    private void refundPlayer() {
-        // 异步退款
-        plugin.getEconomyManager().depositAsync(player, machine.getCost(), success -> {
-            player.sendMessage("§e抽奖已取消，已退还 " +
-                plugin.getShopConfig().formatCurrency(machine.getCost()));
-        });
-    }
 }

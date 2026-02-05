@@ -3,6 +3,7 @@ package dev.user.shop.gui;
 import dev.user.shop.FoliaShopPlugin;
 import dev.user.shop.gacha.GachaMachine;
 import dev.user.shop.gacha.GachaReward;
+import dev.user.shop.gacha.PityRule;
 import dev.user.shop.util.ItemUtil;
 import org.bukkit.Material;
 import org.bukkit.Sound;
@@ -12,6 +13,7 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -25,6 +27,8 @@ public class GachaTenAnimationGUI extends AbstractGUI {
 
     private final GachaMachine machine;
     private final List<GachaReward> finalRewards;
+    private final Map<String, Integer> finalCounters; // 最终的保底计数器值
+    private final List<PityRule> triggeredRules; // 触发的保底规则列表
     private final List<ItemStack> animationItems;
     private final AtomicInteger animationTick = new AtomicInteger(0);
     private final int animationDuration;
@@ -39,10 +43,12 @@ public class GachaTenAnimationGUI extends AbstractGUI {
     private int slowdownStartTick = 0;
     private int revealedCount = 0; // 已经揭示的奖品数量
 
-    public GachaTenAnimationGUI(FoliaShopPlugin plugin, Player player, GachaMachine machine, List<GachaReward> finalRewards) {
+    public GachaTenAnimationGUI(FoliaShopPlugin plugin, Player player, GachaMachine machine, List<GachaReward> finalRewards, Map<String, Integer> counters, List<PityRule> triggeredRules) {
         super(plugin, player, plugin.getShopConfig().getGUITitle("gacha-ten-animation"), 36);
         this.machine = machine;
         this.finalRewards = finalRewards;
+        this.finalCounters = counters;
+        this.triggeredRules = triggeredRules;
         this.animationDuration = machine.getAnimationDurationTen() * 20; // 使用10连抽独立配置
         this.random = new Random();
         this.animationItems = machine.getAnimationItems();
@@ -172,7 +178,7 @@ public class GachaTenAnimationGUI extends AbstractGUI {
             display.setAmount(reward.getAmount());
 
             List<String> lore = new ArrayList<>();
-            lore.add("§7稀有度: " + reward.getRarityColor() + reward.getRarityName());
+            lore.add("§7稀有度: " + reward.getRarityColor() + reward.getRarityPercent());
             lore.add("§e已揭示!");
             ItemUtil.setLore(display, lore);
 
@@ -186,7 +192,7 @@ public class GachaTenAnimationGUI extends AbstractGUI {
     }
 
     private void finishAnimation() {
-        // 确保所有奖品都已显示（此时 state 仍为 PENDING，关闭界面可退款）
+        // 确保所有奖品都已显示
         for (int i = 0; i < 10; i++) {
             revealFinalReward(i);
         }
@@ -195,19 +201,44 @@ public class GachaTenAnimationGUI extends AbstractGUI {
         player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, SoundCategory.MASTER, 1.0f, 1.0f);
         player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, SoundCategory.MASTER, 0.8f, 1.0f);
 
+        // 显示提示信息
+        showPityMessage();
+
         // 延迟后显示结果界面
         plugin.getServer().getRegionScheduler().runDelayed(plugin, player.getLocation(), t -> {
             // 延迟结束后，尝试将 state 从 PENDING 改为 COMPLETED
-            // 如果失败（说明玩家已关闭界面触发过 CANCELLED），就不打开结果界面
             if (!state.compareAndSet(AnimationState.PENDING, AnimationState.COMPLETED)) {
                 return;
             }
 
-            // 成功改为 COMPLETED，现在打开结果界面
-            if (player.isOnline()) {
-                new GachaTenResultGUI(plugin, player, machine, finalRewards).open();
-            }
-        }, 40L); // 2秒后显示结果
+            // 成功改为 COMPLETED，先更新保底计数器（此时才更新，确保已抽不能退）
+            updatePityCountersAndShowResult();
+        }, 10L); // 0.5秒后显示结果
+    }
+
+    /**
+     * 更新保底计数器并显示结果界面
+     */
+    private void updatePityCountersAndShowResult() {
+        // 获取最后触发的保底规则和最后一个奖品
+        List<PityRule> allRules = machine.getPityRules();
+        GachaReward lastReward = finalRewards.get(finalRewards.size() - 1);
+        PityRule lastTriggeredRule = triggeredRules.isEmpty() ? null : triggeredRules.get(triggeredRules.size() - 1);
+
+        // 更新保底计数器（此时才更新，防止提前关闭界面刷保底）
+        plugin.getGachaManager().batchUpdatePityCounters(
+            player.getUniqueId(),
+            machine.getId(),
+            allRules,
+            finalCounters,
+            lastTriggeredRule,
+            lastReward.getId()
+        );
+
+        // 打开结果界面
+        if (player.isOnline()) {
+            new GachaTenResultGUI(plugin, player, machine, finalRewards).open();
+        }
     }
 
     private void revealFinalReward(int index) {
@@ -219,7 +250,7 @@ public class GachaTenAnimationGUI extends AbstractGUI {
 
             List<String> lore = new ArrayList<>();
             lore.add("");
-            lore.add("§7稀有度: " + reward.getRarityColor() + reward.getRarityName());
+            lore.add("§7稀有度: " + reward.getRarityColor() + reward.getRarityPercent());
             ItemUtil.setLore(display, lore);
 
             inventory.setItem(DISPLAY_SLOTS[index], display);
@@ -232,22 +263,44 @@ public class GachaTenAnimationGUI extends AbstractGUI {
         }
     }
 
+    /**
+     * 显示保底提示信息
+     */
+    private void showPityMessage() {
+        if (!triggeredRules.isEmpty()) {
+            // 找出最高稀有度（maxProbability 最小）
+            PityRule highestRule = null;
+            for (PityRule rule : triggeredRules) {
+                if (highestRule == null || rule.getMaxProbability() < highestRule.getMaxProbability()) {
+                    highestRule = rule;
+                }
+            }
+            if (highestRule != null) {
+                player.sendMessage("§6§l✦ 10连抽获得稀有度<" + String.format("%.1f%%", highestRule.getMaxProbability() * 100) + ">奖品，保底计数已重置！");
+            }
+        } else {
+            // 如果没有满足任何保底规则，也显示一下信息
+            player.sendMessage("§6§l✦ 10连抽完成！");
+        }
+    }
+
     @Override
     public void onClose() {
         super.onClose();
         cancelAnimation();
 
-        if (state.compareAndSet(AnimationState.PENDING, AnimationState.CANCELLED)) {
-            refundPlayer();
+        // 如果动画未完成（PENDING状态），强制完成（更新计数器并显示结果，不退款）
+        // 因为已经扣款，必须完成抽奖，不能退款
+        if (state.get() == AnimationState.PENDING) {
+            // 直接强制完成，更新计数器并显示结果
+            if (state.compareAndSet(AnimationState.PENDING, AnimationState.COMPLETED)) {
+                // 显示提示信息
+                showPityMessage();
+                // 延迟一 tick 再打开结果界面，避免与关闭事件冲突
+                plugin.getServer().getRegionScheduler().runDelayed(plugin, player.getLocation(), t -> {
+                    updatePityCountersAndShowResult();
+                }, 1L);
+            }
         }
-    }
-
-    private void refundPlayer() {
-        double totalCost = machine.getCost() * 10;
-        // 异步退款
-        plugin.getEconomyManager().depositAsync(player, totalCost, success -> {
-            player.sendMessage("§e10连抽已取消，已退还 " +
-                plugin.getShopConfig().formatCurrency(totalCost));
-        });
     }
 }

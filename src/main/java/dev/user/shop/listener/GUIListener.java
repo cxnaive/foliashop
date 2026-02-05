@@ -32,7 +32,9 @@ public class GUIListener implements Listener {
         if (clickedInventory == null) return;
 
         InventoryHolder holder = event.getInventory().getHolder();
-        if (!(holder instanceof AbstractGUI gui)) return;
+        if (!(holder instanceof AbstractGUI gui)) {
+            return;
+        }
 
         // 处理出售界面的特殊逻辑
         if (gui instanceof SellGUI sellGUI) {

@@ -207,8 +207,14 @@ public class ShopConfig {
     }
 
     public String getMessage(String key, Map<String, String> placeholders) {
-        String msg = getMessage(key);
+        // 先转换占位符值中的 MiniMessage 为 § 格式
+        Map<String, String> convertedPlaceholders = new HashMap<>();
         for (Map.Entry<String, String> entry : placeholders.entrySet()) {
+            convertedPlaceholders.put(entry.getKey(), convertMiniMessage(entry.getValue()));
+        }
+
+        String msg = getMessage(key);
+        for (Map.Entry<String, String> entry : convertedPlaceholders.entrySet()) {
             msg = msg.replace("{" + entry.getKey() + "}", entry.getValue());
         }
         return msg;

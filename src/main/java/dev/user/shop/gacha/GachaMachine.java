@@ -166,6 +166,25 @@ public class GachaMachine {
     }
 
     /**
+     * 获取奖品满足的所有保底规则（用于正常抽奖时重置计数器）
+     * 如果奖品概率 <= 规则的 maxProbability，则视为满足该规则
+     * @param reward 抽到的奖品
+     * @return 满足的规则列表
+     */
+    public List<PityRule> getSatisfiedPityRules(GachaReward reward) {
+        List<PityRule> satisfied = new ArrayList<>();
+        if (reward == null) return satisfied;
+
+        double rewardProbability = reward.getProbability();
+        for (PityRule rule : pityRules) {
+            if (rewardProbability <= rule.getMaxProbability()) {
+                satisfied.add(rule);
+            }
+        }
+        return satisfied;
+    }
+
+    /**
      * 获取动画物品列表（带缓存）
      */
     public List<org.bukkit.inventory.ItemStack> getAnimationItems() {
