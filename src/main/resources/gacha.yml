@@ -33,6 +33,24 @@ display-entity:
   shadow-radius: 0.3
   # 阴影强度（默认 0.3）
   shadow-strength: 0.3
+  # 是否发光（默认 false）
+  glowing: false
+  # 发光颜色（可选，格式: "RRGGBB" 或 "#RRGGBB"，不设置则使用默认白色）
+  # 示例: "FF0000" = 红色, "00FF00" = 绿色, "0000FF" = 蓝色
+  glow-color: null
+  # 粒子效果配置
+  particle-effect:
+    # 效果类型: NONE, STAR_RING, MAGIC_RUNE, RAINBOW_HALO, FLAME_AURA, FROST_CRYSTAL, LOVE_BUBBLE
+    type: NONE
+    # 粒子密度 (每周期生成的粒子数，默认 3)
+    density: 3
+    # 效果半径 (格，默认 1.2)
+    radius: 1.2
+    # 效果速度 (默认 1.0)
+    speed: 1.0
+    # 自定义颜色 (可选，格式: "RRGGBB" 或 "#RRGGBB")
+    # 不设置则使用预设颜色
+    color: null
 
 # 扭蛋机列表
 machines:
@@ -60,6 +78,7 @@ machines:
     # 展示实体覆盖配置（可选）
     # 未设置的项将继承全局 display-entity 配置
     # display-entity:
+    #   enabled: true       # 是否启用展示实体（默认 true）
     #   scale: 1.0
     #   rotation-y: 90.0
     #   face-player: true
@@ -67,6 +86,13 @@ machines:
     #   float-amplitude: 0.2
     #   float-speed: 2.0
     #   height-offset: 2.0
+    #   glowing: true
+    #   glow-color: "#FFD700"  # 金色发光
+    #   particle-effect:
+    #     type: STAR_RING  # 环绕星光
+    #     density: 3
+    #     radius: 1.5
+    #     speed: 1.5
 
     # 奖品列表
     rewards:

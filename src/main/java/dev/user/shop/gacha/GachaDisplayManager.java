@@ -59,7 +59,7 @@ public class GachaDisplayManager {
      * @return 展示实体UUID，创建失败返回null
      */
     public UUID createDisplay(GachaBlockBinding binding) {
-        // 检查是否启用展示实体
+        // 检查是否启用展示实体（全局设置）
         if (!plugin.getShopConfig().isDisplayEntityEnabled()) {
             return null;
         }
@@ -71,6 +71,13 @@ public class GachaDisplayManager {
 
         GachaMachine machine = plugin.getGachaManager().getMachine(binding.getMachineId());
         if (machine == null) {
+            return null;
+        }
+
+        // 检查该扭蛋机是否启用展示实体
+        DisplayEntityConfig effectiveConfig = getEffectiveConfig(machine);
+        if (!effectiveConfig.isEnabled()) {
+            plugin.getLogger().info("扭蛋机 " + machine.getId() + " 的展示实体已禁用");
             return null;
         }
 
@@ -98,14 +105,21 @@ public class GachaDisplayManager {
     }
 
     /**
+     * 获取有效配置（全局配置 + 扭蛋机特定配置）
+     */
+    private DisplayEntityConfig getEffectiveConfig(GachaMachine machine) {
+        DisplayEntityConfig defaultConfig = DisplayEntityConfig.fromShopConfig(plugin.getShopConfig());
+        return machine.hasDisplayConfig()
+            ? machine.getDisplayConfig().mergeWithParent(defaultConfig)
+            : defaultConfig;
+    }
+
+    /**
      * 内部方法：实际创建展示实体（必须在正确的区域线程执行）
      */
     private UUID createDisplayInternal(GachaBlockBinding binding, GachaMachine machine, Location location) {
-        // 获取有效配置：扭蛋机配置合并到默认配置上
-        DisplayEntityConfig defaultConfig = DisplayEntityConfig.fromShopConfig(plugin.getShopConfig());
-        DisplayEntityConfig effectiveConfig = machine.hasDisplayConfig()
-            ? machine.getDisplayConfig().mergeWithParent(defaultConfig)
-            : defaultConfig;
+        // 获取有效配置
+        DisplayEntityConfig effectiveConfig = getEffectiveConfig(machine);
 
         // 重新计算 location 的 Y 坐标（使用正确的高度偏移）
         Location spawnLocation = new Location(
@@ -142,6 +156,23 @@ public class GachaDisplayManager {
         // 设置视图范围
         display.setViewRange(effectiveConfig.getViewRange());
 
+        // 设置发光
+        if (effectiveConfig.isGlowing()) {
+            String glowColor = effectiveConfig.getGlowColor();
+            if (glowColor != null && !glowColor.isEmpty()) {
+                try {
+                    display.setGlowColorOverride(org.bukkit.Color.fromRGB(
+                        Integer.parseInt(glowColor.replace("#", ""), 16)
+                    ));
+                } catch (NumberFormatException e) {
+                    plugin.getLogger().warning("无效的发光颜色: " + glowColor + "，使用默认白色");
+                    display.setGlowing(true);
+                }
+            } else {
+                display.setGlowing(true);
+            }
+        }
+
         UUID displayUuid = display.getUniqueId();
 
         // 保存到内存
@@ -163,6 +194,12 @@ public class GachaDisplayManager {
         // 启动悬浮动画（如果启用）
         if (effectiveConfig.isFloatingAnimation()) {
             startInterpolationAnimation(display, binding.getId(), effectiveConfig);
+        }
+
+        // 启动粒子效果（如果启用）
+        ParticleEffectConfig particleConfig = effectiveConfig.getParticleEffect();
+        if (particleConfig != null && particleConfig.getType() != ParticleEffectConfig.EffectType.NONE) {
+            startParticleEffect(display, particleConfig);
         }
 
         return displayUuid;
@@ -384,7 +421,11 @@ public class GachaDisplayManager {
 
                         GachaMachine machine = plugin.getGachaManager().getMachine(finalMachineId);
                         if (machine != null) {
-                            createDisplayInternal(binding, machine, location);
+                            // 检查该扭蛋机是否启用展示实体
+                            DisplayEntityConfig effectiveConfig = getEffectiveConfig(machine);
+                            if (effectiveConfig.isEnabled()) {
+                                createDisplayInternal(binding, machine, location);
+                            }
                         }
                     });
                 });
@@ -494,9 +535,16 @@ public class GachaDisplayManager {
                     plugin.getGachaBlockManager().getBinding(worldUuid,
                         new BlockVector(blockPos.x, blockPos.y, blockPos.z),
                         binding -> {
-                            if (binding == null || machine == null) return;
+                            if (binding == null) return;
 
-                            // 调度到区域线程删除旧实体并创建新实体
+                            // 重新获取最新的 machine（reload 后可能已更新）
+                            GachaMachine currentMachine = plugin.getGachaManager().getMachine(binding.getMachineId());
+                            if (currentMachine == null) {
+                                plugin.getLogger().warning("[reload] 无法找到扭蛋机: " + binding.getMachineId());
+                                return;
+                            }
+
+                            // 调度到区域线程删除旧实体并根据配置决定是否重建
                             plugin.getServer().getRegionScheduler().execute(plugin, location, () -> {
                                 // 从内存移除旧记录
                                 Map<BlockPos, UUID> worldDisplays = displayEntities.get(worldUuid);
@@ -507,8 +555,15 @@ public class GachaDisplayManager {
                                 // 删除旧实体
                                 display.remove();
 
-                                // 创建新实体
-                                createDisplayInternal(binding, machine, location);
+                                // 检查新配置是否启用展示实体
+                                DisplayEntityConfig newConfig = getEffectiveConfig(currentMachine);
+                                if (newConfig.isEnabled()) {
+                                    // 创建新实体（使用最新的 machine 配置）
+                                    createDisplayInternal(binding, currentMachine, location);
+                                    plugin.getLogger().info("[reload] 展示实体已重建: " + binding.getMachineId());
+                                } else {
+                                    plugin.getLogger().info("[reload] 展示实体已禁用，不重建: " + binding.getMachineId());
+                                }
                             });
                         });
                 }
@@ -516,5 +571,34 @@ public class GachaDisplayManager {
                 plugin.getLogger().warning("检查过时状态失败: " + error.getMessage());
             });
         }, null, 20L, 20L); // 延迟1秒后开始，每1秒(20tick)检测一次
+    }
+
+    /**
+     * 启动粒子效果任务
+     * @param display 展示实体
+     * @param particleConfig 粒子效果配置
+     */
+    private void startParticleEffect(ItemDisplay display, ParticleEffectConfig particleConfig) {
+        // 创建粒子配置的副本，每个实体有自己的状态
+        ParticleEffectConfig config = new ParticleEffectConfig(
+            particleConfig.getType(),
+            particleConfig.getDensity(),
+            particleConfig.getRadius(),
+            particleConfig.getSpeed(),
+            particleConfig.getCustomColor()
+        );
+
+        display.getScheduler().runAtFixedRate(plugin, task -> {
+            if (!display.isValid() || display.isDead()) {
+                task.cancel();
+                return;
+            }
+
+            // 每tick更新粒子效果
+            boolean shouldContinue = config.tick(display);
+            if (!shouldContinue) {
+                task.cancel();
+            }
+        }, null, 1L, 1L); // 每tick更新一次
     }
 }
