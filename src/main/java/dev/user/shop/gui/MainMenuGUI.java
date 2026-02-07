@@ -16,8 +16,8 @@ public class MainMenuGUI extends AbstractGUI {
     protected void initialize() {
         fillBorder(Material.BLACK_STAINED_GLASS_PANE);
 
-        // 商店按钮
-        if (plugin.getShopConfig().isShopEnabled()) {
+        // 商店按钮（需要功能启用且有权限）
+        if (plugin.getShopConfig().isShopEnabled() && player.hasPermission("foliashop.shop.use")) {
             ItemStack shopBtn = new ItemStack(Material.EMERALD);
             ItemUtil.setDisplayName(shopBtn, "§a§l系统商店");
             ItemUtil.setLore(shopBtn, java.util.Arrays.asList(
@@ -31,8 +31,8 @@ public class MainMenuGUI extends AbstractGUI {
             });
         }
 
-        // 扭蛋按钮
-        if (plugin.getShopConfig().isGachaEnabled()) {
+        // 扭蛋按钮（需要功能启用且有权限）
+        if (plugin.getShopConfig().isGachaEnabled() && player.hasPermission("foliashop.gacha.use")) {
             ItemStack gachaBtn = new ItemStack(Material.NETHER_STAR);
             ItemUtil.setDisplayName(gachaBtn, "§6§l扭蛋中心");
             ItemUtil.setLore(gachaBtn, java.util.Arrays.asList(
