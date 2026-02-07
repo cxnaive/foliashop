@@ -137,6 +137,13 @@ public class FoliaShopCommand implements CommandExecutor, TabCompleter {
                 }
                 handleListBlocksCommand(sender, args);
             }
+            case "exportshop" -> {
+                if (!sender.hasPermission("foliashop.admin")) {
+                    sender.sendMessage(plugin.getShopConfig().getMessage("no-permission"));
+                    return true;
+                }
+                handleExportShopCommand(sender);
+            }
             case "help" -> sendHelp(sender);
             default -> sender.sendMessage("§c未知命令。使用 /foliashop help 查看帮助。");
         }
@@ -162,6 +169,7 @@ public class FoliaShopCommand implements CommandExecutor, TabCompleter {
                 completions.add("bindblock");
                 completions.add("unbindblock");
                 completions.add("listblocks");
+                completions.add("exportshop");
             }
             return completions.stream()
                 .filter(s -> s.toLowerCase().startsWith(args[0].toLowerCase()))
@@ -217,6 +225,7 @@ public class FoliaShopCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("§e/foliashop bindblock <machineId> §7- 绑定看向的方块到扭蛋机");
             sender.sendMessage("§e/foliashop unbindblock §7- 解绑看向的方块");
             sender.sendMessage("§e/foliashop listblocks [machineId] §7- 列出方块绑定");
+            sender.sendMessage("§e/foliashop exportshop §7- 导出商店数据到 backup_shop.yml");
         }
         sender.sendMessage("§6==================================");
     }
@@ -374,6 +383,19 @@ public class FoliaShopCommand implements CommandExecutor, TabCompleter {
             }
         }
         sender.sendMessage("§6==================================");
+    }
+
+    private void handleExportShopCommand(CommandSender sender) {
+        sender.sendMessage("§e正在导出商店数据到 backup_shop.yml，请稍候...");
+
+        plugin.getShopManager().exportToYaml(count -> {
+            if (count > 0) {
+                sender.sendMessage("§a✔ 成功导出 " + count + " 个商品到 backup_shop.yml");
+                sender.sendMessage("§7文件位置: §e" + plugin.getDataFolder().getAbsolutePath() + "/backup_shop.yml");
+            } else {
+                sender.sendMessage("§c✘ 导出失败，请查看控制台日志");
+            }
+        });
     }
 
     /**

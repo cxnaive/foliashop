@@ -834,4 +834,117 @@ public class ShopManager {
         public String getIcon() { return icon; }
         public int getSlot() { return slot; }
     }
+
+    /**
+     * 导出商店数据到 backup_shop.yml
+     * @param callback 回调函数，参数为导出的商品数量
+     */
+    public void exportToYaml(java.util.function.Consumer<Integer> callback) {
+        plugin.getDatabaseQueue().submit("exportShopToYaml", conn -> {
+            // 查询所有商品数据
+            String sql = "SELECT id, item_key, buy_price, sell_price, stock, category, slot, daily_limit, enabled FROM shop_items ORDER BY id";
+            List<ShopItemData> items = new ArrayList<>();
+
+            try (PreparedStatement ps = conn.prepareStatement(sql);
+                 ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    items.add(new ShopItemData(
+                        rs.getString("id"),
+                        rs.getString("item_key"),
+                        rs.getDouble("buy_price"),
+                        rs.getDouble("sell_price"),
+                        rs.getInt("stock"),
+                        rs.getString("category"),
+                        rs.getInt("slot"),
+                        rs.getInt("daily_limit"),
+                        rs.getBoolean("enabled")
+                    ));
+                }
+            }
+
+            // 创建 YAML 配置
+            org.bukkit.configuration.file.YamlConfiguration yaml = new org.bukkit.configuration.file.YamlConfiguration();
+
+            // 添加头部注释
+            yaml.options().header("FoliaShop - 商店数据备份\n导出时间: " + new java.util.Date() + "\n商品数量: " + items.size());
+
+            // 写入配置
+            yaml.set("enabled", true);
+            yaml.set("title", "系统商店");
+            yaml.set("allow-sell", plugin.getShopConfig().isAllowSell());
+            yaml.set("sell-discount", plugin.getShopConfig().getSellDiscount());
+            yaml.set("log-transactions", plugin.getShopConfig().isLogTransactions());
+            yaml.set("refresh-interval", plugin.getShopConfig().getRefreshInterval());
+            yaml.set("daily-buy-limit", plugin.getShopConfig().getDailyBuyLimit());
+
+            // 写入分类
+            ConfigurationSection categoriesSection = yaml.createSection("categories");
+            for (ShopCategory category : categories.values()) {
+                ConfigurationSection catSection = categoriesSection.createSection(category.getId());
+                catSection.set("name", category.getName());
+                catSection.set("icon", category.getIcon());
+                catSection.set("slot", category.getSlot());
+            }
+
+            // 写入商品
+            ConfigurationSection itemsSection = yaml.createSection("items");
+            for (ShopItemData item : items) {
+                ConfigurationSection itemSection = itemsSection.createSection(item.id);
+                itemSection.set("item", item.itemKey);
+                itemSection.set("buy-price", item.buyPrice);
+                itemSection.set("sell-price", item.sellPrice);
+                itemSection.set("stock", item.stock);
+                itemSection.set("category", item.category);
+                itemSection.set("slot", item.slot);
+                if (item.dailyLimit > 0) {
+                    itemSection.set("daily-limit", item.dailyLimit);
+                }
+                if (!item.enabled) {
+                    itemSection.set("enabled", false);
+                }
+            }
+
+            // 保存到文件
+            java.io.File backupFile = new java.io.File(plugin.getDataFolder(), "backup_shop.yml");
+            try {
+                yaml.save(backupFile);
+                plugin.getLogger().info("商店数据已导出到: " + backupFile.getAbsolutePath());
+                return items.size();
+            } catch (Exception e) {
+                plugin.getLogger().warning("导出商店数据失败: " + e.getMessage());
+                throw new RuntimeException(e);
+            }
+        }, callback, error -> {
+            plugin.getLogger().warning("导出商店数据失败: " + error.getMessage());
+            callback.accept(0);
+        });
+    }
+
+    /**
+     * 商店数据临时类（用于导出）
+     */
+    private static class ShopItemData {
+        final String id;
+        final String itemKey;
+        final double buyPrice;
+        final double sellPrice;
+        final int stock;
+        final String category;
+        final int slot;
+        final int dailyLimit;
+        final boolean enabled;
+
+        ShopItemData(String id, String itemKey, double buyPrice, double sellPrice,
+                     int stock, String category, int slot, int dailyLimit, boolean enabled) {
+            this.id = id;
+            this.itemKey = itemKey;
+            this.buyPrice = buyPrice;
+            this.sellPrice = sellPrice;
+            this.stock = stock;
+            this.category = category;
+            this.slot = slot;
+            this.dailyLimit = dailyLimit;
+            this.enabled = enabled;
+        }
+    }
 }
