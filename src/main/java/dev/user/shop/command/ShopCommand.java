@@ -26,6 +26,11 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        if (!plugin.getShopConfig().isShopEnabled()) {
+            player.sendMessage(plugin.getShopConfig().getMessage("feature-disabled"));
+            return true;
+        }
+
         if (!player.hasPermission("foliashop.shop.use")) {
             player.sendMessage(plugin.getShopConfig().getMessage("no-permission"));
             return true;
