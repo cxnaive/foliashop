@@ -751,6 +751,39 @@ shop:
 gacha:
   # 是否启用扭蛋
   enabled: true
+
+  # 方块绑定展示实体设置
+  display-entity:
+    # 是否启用展示实体
+    enabled: true
+    # 缩放比例 (默认 0.8)
+    scale: 0.8
+    # 初始Y轴旋转角度（度，默认 45）
+    rotation-y: 45
+    # 是否朝向玩家 (true=朝向玩家, false=固定方向)
+    face-player: false
+    # 是否启用悬浮动画
+    floating-animation: true
+    # 悬浮动画幅度（格，默认 0.1）
+    float-amplitude: 0.1
+    # 悬浮动画速度（默认 1.0）
+    float-speed: 1.0
+    # 展示实体高度偏移（格，默认 1.5）
+    # 相对于绑定方块的高度
+    height-offset: 1.5
+    # 动画更新周期（tick，默认 3）
+    # 服务器每 N tick 更新一次目标变换，客户端用 N tick 平滑过渡
+    # 两者保持一致确保动画连续流畅
+    # 数值越大越平滑但延迟越大，数值越小越灵敏但可能卡顿
+    # 推荐：2-5（10-6.7 fps）
+    animation-period: 3
+    # 视图范围（格，默认 32）
+    view-range: 32
+    # 阴影半径（默认 0.3）
+    shadow-radius: 0.3
+    # 阴影强度（默认 0.3）
+    shadow-strength: 0.3
+
   # 扭蛋机列表
   machines:
     # ========== 普通扭蛋机 ==========
@@ -786,6 +819,21 @@ gacha:
       #     max-probability: 0.20   # 每10次至少出1个精良+奖品
       #   - count: 50
       #     max-probability: 0.05   # 每50次至少出1个史诗+奖品
+
+      # 展示实体覆盖配置（可选）
+      # 未设置的项将继承全局 gacha.display-entity 配置
+      # display-entity:
+      #   scale: 1.0              # 缩放比例（默认 0.8）
+      #   rotation-y: 90.0        # 初始Y轴旋转角度（默认 45）
+      #   face-player: true       # 是否朝向玩家（默认 false）
+      #   floating-animation: true # 是否启用悬浮动画（默认 true）
+      #   float-amplitude: 0.2    # 悬浮幅度（默认 0.1）
+      #   float-speed: 2.0        # 悬浮速度（默认 1.0）
+      #   height-offset: 2.0      # 高度偏移（默认 1.5）
+      #   animation-period: 5     # 动画周期（默认 3）
+      #   view-range: 64.0        # 视图范围（默认 32）
+      #   shadow-radius: 0.5      # 阴影半径（默认 0.3）
+      #   shadow-strength: 0.5    # 阴影强度（默认 0.3）
 
       # 奖品列表
       rewards:

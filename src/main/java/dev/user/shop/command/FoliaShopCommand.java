@@ -1,13 +1,17 @@
 package dev.user.shop.command;
 
 import dev.user.shop.FoliaShopPlugin;
+import dev.user.shop.gacha.GachaBlockBinding;
 import dev.user.shop.gui.MainMenuGUI;
 import dev.user.shop.gui.ShopAdminGUI;
+import org.bukkit.FluidCollisionMode;
+import org.bukkit.block.Block;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
+import org.bukkit.util.RayTraceResult;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -96,6 +100,35 @@ public class FoliaShopCommand implements CommandExecutor, TabCompleter {
                 }
                 handleCleanCommand(sender, args);
             }
+            case "bindblock" -> {
+                if (!(sender instanceof Player player)) {
+                    sender.sendMessage("§c此命令只能由玩家执行。");
+                    return true;
+                }
+                if (!player.hasPermission("foliashop.admin")) {
+                    player.sendMessage(plugin.getShopConfig().getMessage("no-permission"));
+                    return true;
+                }
+                handleBindBlockCommand(player, args);
+            }
+            case "unbindblock" -> {
+                if (!(sender instanceof Player player)) {
+                    sender.sendMessage("§c此命令只能由玩家执行。");
+                    return true;
+                }
+                if (!player.hasPermission("foliashop.admin")) {
+                    player.sendMessage(plugin.getShopConfig().getMessage("no-permission"));
+                    return true;
+                }
+                handleUnbindBlockCommand(player);
+            }
+            case "listblocks" -> {
+                if (!sender.hasPermission("foliashop.admin")) {
+                    sender.sendMessage(plugin.getShopConfig().getMessage("no-permission"));
+                    return true;
+                }
+                handleListBlocksCommand(sender, args);
+            }
             case "help" -> sendHelp(sender);
             default -> sender.sendMessage("§c未知命令。使用 /foliashop help 查看帮助。");
         }
@@ -118,6 +151,9 @@ public class FoliaShopCommand implements CommandExecutor, TabCompleter {
                 completions.add("admin");
                 completions.add("reset");
                 completions.add("clean");
+                completions.add("bindblock");
+                completions.add("unbindblock");
+                completions.add("listblocks");
             }
             return completions.stream()
                 .filter(s -> s.toLowerCase().startsWith(args[0].toLowerCase()))
@@ -129,6 +165,26 @@ public class FoliaShopCommand implements CommandExecutor, TabCompleter {
             if (sender.hasPermission("foliashop.admin")) {
                 return List.of("5", "10", "30").stream()
                     .filter(s -> s.startsWith(args[1]))
+                    .toList();
+            }
+        }
+
+        // bindblock 命令的参数补全（扭蛋机ID）
+        if (args.length == 2 && args[0].equalsIgnoreCase("bindblock")) {
+            if (sender.hasPermission("foliashop.admin")) {
+                return plugin.getGachaManager().getAllMachines().stream()
+                    .map(machine -> machine.getId())
+                    .filter(id -> id.toLowerCase().startsWith(args[1].toLowerCase()))
+                    .toList();
+            }
+        }
+
+        // listblocks 命令的参数补全（扭蛋机ID，可选）
+        if (args.length == 2 && args[0].equalsIgnoreCase("listblocks")) {
+            if (sender.hasPermission("foliashop.admin")) {
+                return plugin.getGachaManager().getAllMachines().stream()
+                    .map(machine -> machine.getId())
+                    .filter(id -> id.toLowerCase().startsWith(args[1].toLowerCase()))
                     .toList();
             }
         }
@@ -149,6 +205,11 @@ public class FoliaShopCommand implements CommandExecutor, TabCompleter {
         }
         sender.sendMessage("§e/shop §7- 打开商店");
         sender.sendMessage("§e/gacha §7- 打开扭蛋");
+        if (sender.hasPermission("foliashop.admin")) {
+            sender.sendMessage("§e/foliashop bindblock <machineId> §7- 绑定看向的方块到扭蛋机");
+            sender.sendMessage("§e/foliashop unbindblock §7- 解绑看向的方块");
+            sender.sendMessage("§e/foliashop listblocks [machineId] §7- 列出方块绑定");
+        }
         sender.sendMessage("§6==================================");
     }
 
@@ -190,5 +251,137 @@ public class FoliaShopCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage("§a========================");
             });
         });
+    }
+
+    private void handleBindBlockCommand(Player player, String[] args) {
+        if (args.length < 2) {
+            player.sendMessage("§c用法: /foliashop bindblock <machineId>");
+            player.sendMessage("§7可用扭蛋机: §e" + String.join(", ",
+                plugin.getGachaManager().getAllMachines().stream()
+                    .map(m -> m.getId())
+                    .toList()));
+            return;
+        }
+
+        String machineId = args[1].toLowerCase();
+
+        // 检查扭蛋机是否存在
+        if (plugin.getGachaManager().getMachine(machineId) == null) {
+            player.sendMessage("§c错误：扭蛋机 '" + machineId + "' 不存在！");
+            return;
+        }
+
+        // 获取玩家看向的方块（10格内）
+        Block targetBlock = getTargetBlock(player, 10);
+        if (targetBlock == null) {
+            player.sendMessage("§c请看向10格内的方块！");
+            return;
+        }
+
+        // 检查是否已绑定
+        if (plugin.getGachaBlockManager().isBlockBound(targetBlock)) {
+            String existingMachine = plugin.getGachaBlockManager().getMachineByBlock(targetBlock);
+            player.sendMessage("§c该方块已绑定到扭蛋机 '" + existingMachine + "'，请先解绑！");
+            return;
+        }
+
+        // 执行绑定
+        player.sendMessage("§e正在绑定...");
+        plugin.getGachaBlockManager().bindBlock(targetBlock, machineId, player, result -> {
+            if (result.success()) {
+                player.sendMessage("§a✔ 成功将方块绑定到扭蛋机 '" + machineId + "'！");
+                player.sendMessage("§7左键点击方块：预览奖品");
+                player.sendMessage("§7右键点击方块：打开抽奖界面");
+            } else {
+                player.sendMessage("§c✘ 绑定失败: " + result.message());
+            }
+        });
+    }
+
+    private void handleUnbindBlockCommand(Player player) {
+        // 获取玩家看向的方块（10格内）
+        Block targetBlock = getTargetBlock(player, 10);
+        if (targetBlock == null) {
+            player.sendMessage("§c请看向10格内的方块！");
+            return;
+        }
+
+        // 检查是否已绑定
+        String existingMachine = plugin.getGachaBlockManager().getMachineByBlock(targetBlock);
+        if (existingMachine == null) {
+            player.sendMessage("§c该方块未绑定任何扭蛋机！");
+            return;
+        }
+
+        // 执行解绑
+        player.sendMessage("§e正在解绑...");
+        plugin.getGachaBlockManager().unbindBlock(targetBlock, result -> {
+            if (result.success()) {
+                player.sendMessage("§a✔ 成功解绑方块！原绑定扭蛋机: '" + result.message() + "'");
+            } else {
+                player.sendMessage("§c✘ 解绑失败: " + result.message());
+            }
+        });
+    }
+
+    private void handleListBlocksCommand(CommandSender sender, String[] args) {
+        if (args.length >= 2) {
+            String machineId = args[1].toLowerCase();
+            if (plugin.getGachaManager().getMachine(machineId) == null) {
+                sender.sendMessage("§c错误：扭蛋机 '" + machineId + "' 不存在！");
+                return;
+            }
+            String title = "扭蛋机 '" + machineId + "' 的方块绑定列表";
+            plugin.getGachaBlockManager().getBindingsByMachine(machineId, bindings -> {
+                sendBindingsList(sender, title, bindings);
+            });
+        } else {
+            String title = "所有扭蛋机方块绑定列表";
+            plugin.getGachaBlockManager().getAllBindings(bindings -> {
+                sendBindingsList(sender, title, bindings);
+            });
+        }
+    }
+
+    private void sendBindingsList(CommandSender sender, String title, List<GachaBlockBinding> bindings) {
+        sender.sendMessage("§6========== " + title + " ==========");
+        sender.sendMessage("§7共 " + bindings.size() + " 个绑定");
+
+        if (bindings.isEmpty()) {
+            sender.sendMessage("§7暂无绑定");
+        } else {
+            int index = 1;
+            for (GachaBlockBinding binding : bindings) {
+                String worldName = plugin.getGachaBlockManager().getWorldName(binding.getWorldUuid());
+                sender.sendMessage("§e" + index + ". §7扭蛋机: §f" + binding.getMachineId() +
+                    " §7世界: §f" + worldName +
+                    " §7坐标: §f" + binding.getPosition().getBlockX() + "," +
+                    binding.getPosition().getBlockY() + "," +
+                    binding.getPosition().getBlockZ());
+                index++;
+                if (index > 20) {
+                    sender.sendMessage("§7... 还有 " + (bindings.size() - 20) + " 个绑定未显示");
+                    break;
+                }
+            }
+        }
+        sender.sendMessage("§6==================================");
+    }
+
+    /**
+     * 获取玩家看向的方块
+     * @param player 玩家
+     * @param maxDistance 最大距离
+     * @return 目标方块，未找到返回 null
+     */
+    private Block getTargetBlock(Player player, int maxDistance) {
+        RayTraceResult result = player.getWorld().rayTraceBlocks(
+            player.getEyeLocation(),
+            player.getEyeLocation().getDirection(),
+            maxDistance,
+            FluidCollisionMode.NEVER,
+            true
+        );
+        return result != null ? result.getHitBlock() : null;
     }
 }

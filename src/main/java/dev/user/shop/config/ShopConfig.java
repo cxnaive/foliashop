@@ -4,13 +4,17 @@ import dev.user.shop.FoliaShopPlugin;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 
+import java.io.File;
 import java.util.*;
 
 public class ShopConfig {
 
     private final FoliaShopPlugin plugin;
     private FileConfiguration config;
+    private FileConfiguration shopConfig;
+    private FileConfiguration gachaConfig;
 
     // 数据库设置
     private String databaseType;
@@ -45,6 +49,20 @@ public class ShopConfig {
     // 扭蛋设置
     private boolean gachaEnabled;
 
+    // 展示实体设置
+    private boolean displayEntityEnabled;
+    private float displayEntityScale;
+    private float displayEntityRotationY;
+    private boolean displayEntityFacePlayer;
+    private boolean displayEntityFloatingAnimation;
+    private float displayEntityFloatAmplitude;
+    private float displayEntityFloatSpeed;
+    private float displayEntityHeightOffset;
+    private int displayEntityAnimationPeriod;
+    private float displayEntityViewRange;
+    private float displayEntityShadowRadius;
+    private float displayEntityShadowStrength;
+
     // GUI设置
     private Map<String, String> guiTitles;
     private Map<String, ItemConfig> guiDecorations;
@@ -60,10 +78,82 @@ public class ShopConfig {
         load();
     }
 
+    /**
+     * 加载或创建单独的配置文件
+     */
+    private FileConfiguration loadOrCreateConfig(String fileName) {
+        File configFile = new File(plugin.getDataFolder(), fileName);
+        if (!configFile.exists()) {
+            plugin.saveResource(fileName, false);
+        }
+        return YamlConfiguration.loadConfiguration(configFile);
+    }
+
+    /**
+     * 从主配置或单独配置获取值（优先使用单独配置）
+     */
+    private String getString(String path, String defaultValue) {
+        // 优先从单独配置读取
+        if (shopConfig != null && shopConfig.contains(path)) {
+            return shopConfig.getString(path, defaultValue);
+        }
+        if (gachaConfig != null && gachaConfig.contains(path)) {
+            return gachaConfig.getString(path, defaultValue);
+        }
+        // 回退到主配置
+        return config.getString(path, defaultValue);
+    }
+
+    private boolean getBoolean(String path, boolean defaultValue) {
+        if (shopConfig != null && shopConfig.contains(path)) {
+            return shopConfig.getBoolean(path, defaultValue);
+        }
+        if (gachaConfig != null && gachaConfig.contains(path)) {
+            return gachaConfig.getBoolean(path, defaultValue);
+        }
+        return config.getBoolean(path, defaultValue);
+    }
+
+    private double getDouble(String path, double defaultValue) {
+        if (shopConfig != null && shopConfig.contains(path)) {
+            return shopConfig.getDouble(path, defaultValue);
+        }
+        if (gachaConfig != null && gachaConfig.contains(path)) {
+            return gachaConfig.getDouble(path, defaultValue);
+        }
+        return config.getDouble(path, defaultValue);
+    }
+
+    private int getInt(String path, int defaultValue) {
+        if (shopConfig != null && shopConfig.contains(path)) {
+            return shopConfig.getInt(path, defaultValue);
+        }
+        if (gachaConfig != null && gachaConfig.contains(path)) {
+            return gachaConfig.getInt(path, defaultValue);
+        }
+        return config.getInt(path, defaultValue);
+    }
+
+    private ConfigurationSection getConfigurationSection(String path) {
+        if (shopConfig != null) {
+            ConfigurationSection section = shopConfig.getConfigurationSection(path);
+            if (section != null) return section;
+        }
+        if (gachaConfig != null) {
+            ConfigurationSection section = gachaConfig.getConfigurationSection(path);
+            if (section != null) return section;
+        }
+        return config.getConfigurationSection(path);
+    }
+
     public void load() {
         this.config = plugin.getConfig();
 
-        // 数据库设置
+        // 加载单独的配置文件（如果存在）
+        this.shopConfig = loadOrCreateConfig("shop.yml");
+        this.gachaConfig = loadOrCreateConfig("gacha.yml");
+
+        // 数据库设置（仅从主配置读取）
         this.databaseType = config.getString("database.type", "h2");
         this.mysqlHost = config.getString("database.mysql.host", "localhost");
         this.mysqlPort = config.getInt("database.mysql.port", 3306);
@@ -73,26 +163,26 @@ public class ShopConfig {
         this.mysqlPoolSize = config.getInt("database.mysql.pool-size", 10);
         this.h2Filename = config.getString("database.h2.filename", "foliashop");
 
-        // 经济设置
+        // 经济设置（仅从主配置读取）
         this.economyEnabled = config.getBoolean("economy.enabled", true);
         this.currencyName = config.getString("economy.currency-name", "金币");
         this.currencyFormat = config.getString("economy.currency-format", "{amount} {currency}");
 
-        // 商店设置
-        this.shopEnabled = config.getBoolean("shop.enabled", true);
-        this.shopTitle = config.getString("shop.title", "系统商店");
-        this.allowSell = config.getBoolean("shop.allow-sell", true);
-        this.sellDiscount = config.getDouble("shop.sell-discount", 0.7);
-        this.logTransactions = config.getBoolean("shop.log-transactions", true);
-        this.refreshInterval = config.getInt("shop.refresh-interval", 0);
-        this.dailyBuyLimit = config.getInt("shop.daily-buy-limit", 0);
+        // 商店设置（优先从 shop.yml 读取，否则从 config.yml 读取）
+        this.shopEnabled = getBoolean("shop.enabled", true);
+        this.shopTitle = getString("shop.title", "系统商店");
+        this.allowSell = getBoolean("shop.allow-sell", true);
+        this.sellDiscount = getDouble("shop.sell-discount", 0.7);
+        this.logTransactions = getBoolean("shop.log-transactions", true);
+        this.refreshInterval = getInt("shop.refresh-interval", 0);
+        this.dailyBuyLimit = getInt("shop.daily-buy-limit", 0);
 
         // 系统回收设置
-        this.sellSystemEnabled = config.getBoolean("shop.sell-system.enabled", true);
-        this.sellSystemMode = config.getString("shop.sell-system.mode", "SHOP_ONLY").toUpperCase();
-        this.addStockOnSell = config.getBoolean("shop.sell-system.add-stock-on-sell", false);
+        this.sellSystemEnabled = getBoolean("shop.sell-system.enabled", true);
+        this.sellSystemMode = getString("shop.sell-system.mode", "SHOP_ONLY").toUpperCase();
+        this.addStockOnSell = getBoolean("shop.sell-system.add-stock-on-sell", false);
         this.customSellItems = new HashMap<>();
-        ConfigurationSection customItemsSection = config.getConfigurationSection("shop.sell-system.custom-items");
+        ConfigurationSection customItemsSection = getConfigurationSection("shop.sell-system.custom-items");
         if (customItemsSection != null) {
             for (String itemKey : customItemsSection.getKeys(false)) {
                 double price = customItemsSection.getDouble(itemKey, 0);
@@ -102,10 +192,28 @@ public class ShopConfig {
             }
         }
 
-        // 扭蛋设置
-        this.gachaEnabled = config.getBoolean("gacha.enabled", true);
+        // 扭蛋设置（优先从 gacha.yml 读取，否则从 config.yml 读取）
+        this.gachaEnabled = getBoolean("gacha.enabled", true);
 
-        // GUI标题
+        // 展示实体设置
+        this.displayEntityEnabled = getBoolean("gacha.display-entity.enabled", true);
+        this.displayEntityScale = (float) getDouble("gacha.display-entity.scale", 0.8);
+        this.displayEntityRotationY = (float) getDouble("gacha.display-entity.rotation-y", 45.0);
+        this.displayEntityFacePlayer = getBoolean("gacha.display-entity.face-player", false);
+        this.displayEntityFloatingAnimation = getBoolean("gacha.display-entity.floating-animation", true);
+        this.displayEntityFloatAmplitude = (float) getDouble("gacha.display-entity.float-amplitude", 0.1);
+        this.displayEntityFloatSpeed = (float) getDouble("gacha.display-entity.float-speed", 1.0);
+        this.displayEntityHeightOffset = (float) getDouble("gacha.display-entity.height-offset", 1.5);
+        this.displayEntityAnimationPeriod = getInt("gacha.display-entity.animation-period", 3);
+        // 确保至少为1
+        if (this.displayEntityAnimationPeriod < 1) {
+            this.displayEntityAnimationPeriod = 1;
+        }
+        this.displayEntityViewRange = (float) getDouble("gacha.display-entity.view-range", 32.0);
+        this.displayEntityShadowRadius = (float) getDouble("gacha.display-entity.shadow-radius", 0.3);
+        this.displayEntityShadowStrength = (float) getDouble("gacha.display-entity.shadow-strength", 0.3);
+
+        // GUI标题（仅从主配置读取）
         ConfigurationSection titlesSection = config.getConfigurationSection("gui.titles");
         if (titlesSection != null) {
             for (String key : titlesSection.getKeys(false)) {
@@ -113,7 +221,7 @@ public class ShopConfig {
             }
         }
 
-        // GUI装饰
+        // GUI装饰（仅从主配置读取）
         ConfigurationSection decorationSection = config.getConfigurationSection("gui.decoration");
         if (decorationSection != null) {
             for (String key : decorationSection.getKeys(false)) {
@@ -127,7 +235,7 @@ public class ShopConfig {
             }
         }
 
-        // 消息
+        // 消息（仅从主配置读取）
         ConfigurationSection messagesSection = config.getConfigurationSection("messages");
         if (messagesSection != null) {
             for (String key : messagesSection.getKeys(false)) {
@@ -170,6 +278,20 @@ public class ShopConfig {
     public double getCustomSellPrice(String itemKey) { return customSellItems.getOrDefault(itemKey, 0.0); }
 
     public boolean isGachaEnabled() { return gachaEnabled; }
+
+    // 展示实体设置 Getters
+    public boolean isDisplayEntityEnabled() { return displayEntityEnabled; }
+    public float getDisplayEntityScale() { return displayEntityScale; }
+    public float getDisplayEntityRotationY() { return displayEntityRotationY; }
+    public boolean isDisplayEntityFacePlayer() { return displayEntityFacePlayer; }
+    public boolean isDisplayEntityFloatingAnimation() { return displayEntityFloatingAnimation; }
+    public float getDisplayEntityFloatAmplitude() { return displayEntityFloatAmplitude; }
+    public float getDisplayEntityFloatSpeed() { return displayEntityFloatSpeed; }
+    public float getDisplayEntityHeightOffset() { return displayEntityHeightOffset; }
+    public int getDisplayEntityAnimationPeriod() { return displayEntityAnimationPeriod; }
+    public float getDisplayEntityViewRange() { return displayEntityViewRange; }
+    public float getDisplayEntityShadowRadius() { return displayEntityShadowRadius; }
+    public float getDisplayEntityShadowStrength() { return displayEntityShadowStrength; }
 
     public String getGUITitle(String key) {
         // 提供有意义的默认值，当配置文件中没有时显示
@@ -253,14 +375,29 @@ public class ShopConfig {
     }
 
     public ConfigurationSection getShopCategories() {
+        // 优先从 shop.yml 读取
+        if (shopConfig != null) {
+            ConfigurationSection section = shopConfig.getConfigurationSection("shop.categories");
+            if (section != null) return section;
+        }
         return config.getConfigurationSection("shop.categories");
     }
 
     public ConfigurationSection getShopItems() {
+        // 优先从 shop.yml 读取
+        if (shopConfig != null) {
+            ConfigurationSection section = shopConfig.getConfigurationSection("shop.items");
+            if (section != null) return section;
+        }
         return config.getConfigurationSection("shop.items");
     }
 
     public ConfigurationSection getGachaMachines() {
+        // 优先从 gacha.yml 读取
+        if (gachaConfig != null) {
+            ConfigurationSection section = gachaConfig.getConfigurationSection("gacha.machines");
+            if (section != null) return section;
+        }
         return config.getConfigurationSection("gacha.machines");
     }
 

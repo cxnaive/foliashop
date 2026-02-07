@@ -7,8 +7,12 @@ import dev.user.shop.config.ShopConfig;
 import dev.user.shop.database.DatabaseManager;
 import dev.user.shop.database.DatabaseQueue;
 import dev.user.shop.economy.EconomyManager;
+import dev.user.shop.gacha.GachaBlockManager;
+import dev.user.shop.gacha.GachaDisplayManager;
 import dev.user.shop.gacha.GachaManager;
 import dev.user.shop.gui.GUIManager;
+import dev.user.shop.listener.BlockInteractListener;
+import dev.user.shop.listener.ChunkListener;
 import dev.user.shop.listener.GUIListener;
 import dev.user.shop.shop.ShopManager;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -23,6 +27,8 @@ public class FoliaShopPlugin extends JavaPlugin {
     private EconomyManager economyManager;
     private ShopManager shopManager;
     private GachaManager gachaManager;
+    private GachaBlockManager gachaBlockManager;
+    private GachaDisplayManager gachaDisplayManager;
 
     @Override
     public void onEnable() {
@@ -61,6 +67,8 @@ public class FoliaShopPlugin extends JavaPlugin {
         this.economyManager = new EconomyManager(this);
         economyManager.init();
 
+        
+
         // 延迟初始化商店和扭蛋管理器（等待 CraftEngine 注册物品）
         getServer().getGlobalRegionScheduler().runDelayed(this, t -> {
             // 初始化商店管理器
@@ -68,6 +76,13 @@ public class FoliaShopPlugin extends JavaPlugin {
 
             // 初始化扭蛋管理器
             this.gachaManager = new GachaManager(this);
+
+            // 初始化扭蛋机方块绑定管理器
+            this.gachaBlockManager = new GachaBlockManager(this);
+
+            // 初始化扭蛋机展示实体管理器
+            this.gachaDisplayManager = new GachaDisplayManager(this);
+            this.gachaDisplayManager.loadAllDisplays();
 
             getLogger().info("商店和扭蛋系统已加载完成！");
         }, 2L);
@@ -77,6 +92,8 @@ public class FoliaShopPlugin extends JavaPlugin {
 
         // 注册监听器
         getServer().getPluginManager().registerEvents(new GUIListener(this), this);
+        getServer().getPluginManager().registerEvents(new BlockInteractListener(this), this);
+        getServer().getPluginManager().registerEvents(new ChunkListener(this), this);
 
         getLogger().info("FoliaShop 插件已启用！");
     }
@@ -135,6 +152,9 @@ public class FoliaShopPlugin extends JavaPlugin {
         if (gachaManager != null) {
             gachaManager.reload();
         }
+        if (gachaDisplayManager != null) {
+            gachaDisplayManager.reload();
+        }
     }
 
     public static FoliaShopPlugin getInstance() {
@@ -173,5 +193,23 @@ public class FoliaShopPlugin extends JavaPlugin {
             this.gachaManager = new GachaManager(this);
         }
         return gachaManager;
+    }
+
+    public GachaBlockManager getGachaBlockManager() {
+        // 如果延迟加载未完成，先初始化
+        if (gachaBlockManager == null) {
+            getLogger().warning("GachaBlockManager 未初始化，正在紧急初始化...");
+            this.gachaBlockManager = new GachaBlockManager(this);
+        }
+        return gachaBlockManager;
+    }
+
+    public GachaDisplayManager getGachaDisplayManager() {
+        // 如果延迟加载未完成，先初始化
+        if (gachaDisplayManager == null) {
+            getLogger().warning("GachaDisplayManager 未初始化，正在紧急初始化...");
+            this.gachaDisplayManager = new GachaDisplayManager(this);
+        }
+        return gachaDisplayManager;
     }
 }

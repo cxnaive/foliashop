@@ -69,9 +69,14 @@ public class GachaManager {
                 continue;
             }
 
+            // 加载展示实体覆盖配置
+            DisplayEntityConfig displayConfig = DisplayEntityConfig.fromConfig(
+                machineSection.getConfigurationSection("display-entity")
+            );
+
             GachaMachine machine = new GachaMachine(
                 machineId, name, description, icon, cost,
-                animationDuration, animationDurationTen, broadcastRare, broadcastThreshold, slot, pityRules, enabled
+                animationDuration, animationDurationTen, broadcastRare, broadcastThreshold, slot, pityRules, enabled, displayConfig
             );
 
             // 加载奖品

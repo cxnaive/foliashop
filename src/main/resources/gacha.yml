@@ -1,0 +1,168 @@
+# =============================
+# FoliaShop - 扭蛋配置
+# =============================
+# 此文件包含扭蛋系统的所有配置
+# 可以覆盖 config.yml 中的扭蛋设置
+
+# 是否启用扭蛋
+enabled: true
+
+# 方块绑定展示实体设置
+display-entity:
+  # 是否启用展示实体
+  enabled: true
+  # 缩放比例 (默认 0.8)
+  scale: 0.8
+  # 初始Y轴旋转角度（度，默认 45）
+  rotation-y: 45
+  # 是否朝向玩家 (true=朝向玩家, false=固定方向)
+  face-player: false
+  # 是否启用悬浮动画
+  floating-animation: true
+  # 悬浮动画幅度（格，默认 0.1）
+  float-amplitude: 0.1
+  # 悬浮动画速度（默认 1.0）
+  float-speed: 1.0
+  # 展示实体高度偏移（格，默认 1.5）
+  height-offset: 1.5
+  # 动画更新周期（tick，默认 3）
+  animation-period: 3
+  # 视图范围（格，默认 32）
+  view-range: 32
+  # 阴影半径（默认 0.3）
+  shadow-radius: 0.3
+  # 阴影强度（默认 0.3）
+  shadow-strength: 0.3
+
+# 扭蛋机列表
+machines:
+  # ========== 普通扭蛋机 ==========
+  normal:
+    name: "<green>普通扭蛋机"
+    description:
+      - "<gray>花费 <yellow>100金币 <gray>抽取一次"
+      - "<gray>有机会获得稀有物品！"
+      - ""
+      - "<green>✦ 单抽: 100金币"
+      - "<green>✦ 10连抽: 1000金币"
+    icon: "minecraft:chest"
+    # 每次抽奖价格
+    cost: 100.0
+    # 单抽动画时长（秒）
+    animation-duration: 3
+    # 10连抽动画时长（秒），不配置则默认为单抽的3倍
+    animation-duration-ten: 8
+    # 是否广播稀有奖品
+    broadcast-rare: true
+    # 稀有度阈值（低于此概率的奖品会广播）
+    broadcast-threshold: 0.05
+
+    # 展示实体覆盖配置（可选）
+    # 未设置的项将继承全局 display-entity 配置
+    # display-entity:
+    #   scale: 1.0
+    #   rotation-y: 90.0
+    #   face-player: true
+    #   floating-animation: true
+    #   float-amplitude: 0.2
+    #   float-speed: 2.0
+    #   height-offset: 2.0
+
+    # 奖品列表
+    rewards:
+      # 普通奖品
+      - id: "common_cobblestone"
+        item: "minecraft:cobblestone"
+        amount: 64
+        probability: 0.15
+        display-name: "<white>一堆圆石"
+      - id: "common_oak_log"
+        item: "minecraft:oak_log"
+        amount: 32
+        probability: 0.12
+        display-name: "<white>橡木原木"
+      - id: "common_coal"
+        item: "minecraft:coal"
+        amount: 16
+        probability: 0.10
+        display-name: "<white>煤炭"
+      # 不常见奖品
+      - id: "uncommon_iron"
+        item: "minecraft:iron_ingot"
+        amount: 8
+        probability: 0.08
+        display-name: "<green>铁锭礼包"
+      - id: "uncommon_gold"
+        item: "minecraft:gold_ingot"
+        amount: 4
+        probability: 0.06
+        display-name: "<green>金锭礼包"
+      # 稀有奖品
+      - id: "rare_diamond"
+        item: "minecraft:diamond"
+        amount: 2
+        probability: 0.03
+        display-name: "<blue>钻石礼包"
+        broadcast: true
+      # 史诗奖品
+      - id: "epic_netherite"
+        item: "minecraft:netherite_ingot"
+        amount: 1
+        probability: 0.01
+        display-name: "<light_purple>下界合金锭"
+        broadcast: true
+
+  # ========== 高级扭蛋机（示例） ==========
+  premium:
+    name: "<gold>高级扭蛋机"
+    description:
+      - "<gray>花费 <yellow>500金币 <gray>抽取一次"
+      - "<gold>更高概率获得稀有物品！"
+      - ""
+      - "<gold>✦ 单抽: 500金币"
+      - "<gold>✦ 10连抽: 5000金币"
+    icon: "minecraft:ender_chest"
+    cost: 500.0
+    animation-duration: 5
+    broadcast-rare: true
+    broadcast-threshold: 0.10
+
+    # 这个扭蛋机有更大的展示实体
+    display-entity:
+      scale: 1.2
+      rotation-y: 0.0
+      face-player: true
+      height-offset: 2.0
+
+    # 保底规则示例
+    pity-rules:
+      - count: 10
+        max-probability: 0.15
+
+    rewards:
+      - id: "p_iron"
+        item: "minecraft:iron_ingot"
+        amount: 16
+        probability: 0.20
+        display-name: "<white>铁锭礼包"
+      - id: "p_gold"
+        item: "minecraft:gold_ingot"
+        amount: 8
+        probability: 0.15
+        display-name: "<white>金锭礼包"
+      - id: "p_diamond"
+        item: "minecraft:diamond"
+        amount: 4
+        probability: 0.08
+        display-name: "<green>钻石礼包"
+      - id: "p_emerald"
+        item: "minecraft:emerald"
+        amount: 8
+        probability: 0.05
+        display-name: "<green>绿宝石礼包"
+      - id: "p_netherite"
+        item: "minecraft:netherite_ingot"
+        amount: 1
+        probability: 0.02
+        display-name: "<blue>下界合金锭"
+        broadcast: true

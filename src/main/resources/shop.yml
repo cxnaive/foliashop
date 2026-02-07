@@ -1,0 +1,176 @@
+# =============================
+# FoliaShop - 商店配置
+# =============================
+# 此文件包含系统商店的所有配置
+# 可以覆盖 config.yml 中的商店设置
+
+# 是否启用商店
+enabled: true
+
+# 商店名称
+title: "系统商店"
+
+# 是否允许玩家出售物品给系统
+allow-sell: true
+
+# 出售价格折扣（玩家出售给系统的价格 = 购买价格 × 此系数）
+sell-discount: 0.7
+
+# 是否记录所有交易日志到数据库
+log-transactions: true
+
+# 商品刷新间隔（分钟，0表示不自动刷新）
+refresh-interval: 0
+
+# 玩家每日购买限制（0表示无限制）
+daily-buy-limit: 0
+
+# =============================
+# 系统回收设置
+# =============================
+sell-system:
+  # 是否启用系统回收功能（/shop sell 命令）
+  enabled: true
+  # 回收模式:
+  # - SHOP_ONLY: 只回收商店中已定义的物品（按商店配置的sell-price）
+  # - CONFIG_ONLY: 只回收下方custom-items中定义的物品
+  # - ALL: 同时支持SHOP_ONLY和CONFIG_ONLY的物品回收
+  mode: "ALL"
+  # 回收物品是否增加商店库存
+  add-stock-on-sell: false
+  # 自定义回收物品列表
+  custom-items:
+    minecraft:cobblestone: 0.5
+    minecraft:stone: 1.0
+    minecraft:dirt: 0.1
+    minecraft:sand: 0.3
+    minecraft:oak_log: 2.0
+    minecraft:wheat: 1.5
+    minecraft:coal: 8.0
+    minecraft:raw_iron: 15.0
+    minecraft:raw_gold: 25.0
+    minecraft:diamond: 80.0
+
+# =============================
+# 商品分类设置
+# =============================
+categories:
+  building:
+    name: "建筑材料"
+    icon: "minecraft:bricks"
+    slot: 10
+  tools:
+    name: "工具装备"
+    icon: "minecraft:diamond_pickaxe"
+    slot: 12
+  food:
+    name: "食物补给"
+    icon: "minecraft:cooked_beef"
+    slot: 14
+  minerals:
+    name: "矿物资源"
+    icon: "minecraft:diamond"
+    slot: 16
+
+# =============================
+# 商店商品列表
+# =============================
+# 配置说明:
+# - item: 物品ID，支持 "minecraft:xxx" 或 "ce_namespace:item_id"
+# - buy-price: 购买价格，0或负数表示不可购买
+# - sell-price: 出售价格，0或负数表示不可出售
+# - stock: 库存数量，-1表示无限库存
+# - category: 所属分类ID
+# - slot: 在分类GUI中的位置
+items:
+  # 建筑材料
+  stone:
+    item: "minecraft:stone"
+    buy-price: 2.0
+    sell-price: 1.0
+    stock: -1
+    category: "building"
+    slot: 10
+  cobblestone:
+    item: "minecraft:cobblestone"
+    buy-price: 1.0
+    sell-price: 0.5
+    stock: -1
+    category: "building"
+    slot: 11
+  oak_planks:
+    item: "minecraft:oak_planks"
+    buy-price: 3.0
+    sell-price: 1.5
+    stock: -1
+    category: "building"
+    slot: 12
+  glass:
+    item: "minecraft:glass"
+    buy-price: 5.0
+    sell-price: 2.5
+    stock: -1
+    category: "building"
+    slot: 13
+
+  # 工具装备
+  iron_pickaxe:
+    item: "minecraft:iron_pickaxe"
+    buy-price: 150.0
+    sell-price: 75.0
+    stock: -1
+    category: "tools"
+    slot: 10
+  iron_sword:
+    item: "minecraft:iron_sword"
+    buy-price: 100.0
+    sell-price: 50.0
+    stock: -1
+    category: "tools"
+    slot: 11
+
+  # 食物补给
+  cooked_beef:
+    item: "minecraft:cooked_beef"
+    buy-price: 10.0
+    sell-price: 5.0
+    stock: -1
+    category: "food"
+    slot: 10
+  bread:
+    item: "minecraft:bread"
+    buy-price: 8.0
+    sell-price: 4.0
+    stock: -1
+    category: "food"
+    slot: 11
+
+  # 矿物资源
+  coal:
+    item: "minecraft:coal"
+    buy-price: 15.0
+    sell-price: 8.0
+    stock: -1
+    category: "minerals"
+    slot: 10
+  iron_ingot:
+    item: "minecraft:iron_ingot"
+    buy-price: 30.0
+    sell-price: 15.0
+    stock: -1
+    category: "minerals"
+    slot: 11
+  gold_ingot:
+    item: "minecraft:gold_ingot"
+    buy-price: 50.0
+    sell-price: 25.0
+    stock: -1
+    category: "minerals"
+    slot: 12
+  diamond:
+    item: "minecraft:diamond"
+    buy-price: 160.0
+    sell-price: 80.0
+    stock: -1
+    category: "minerals"
+    slot: 13

@@ -24,12 +24,21 @@ public class GachaMachine {
     private final List<GachaReward> rewards;
     private boolean enabled; // 是否启用
 
+    // 展示实体覆盖配置（可选，为null时使用默认配置）
+    private final DisplayEntityConfig displayConfig;
+
     private double totalProbability;
     private List<org.bukkit.inventory.ItemStack> cachedAnimationItems;
 
     public GachaMachine(String id, String name, List<String> description, String icon, double cost,
                         int animationDuration, int animationDurationTen, boolean broadcastRare, double broadcastThreshold, int slot,
                         List<PityRule> pityRules, boolean enabled) {
+        this(id, name, description, icon, cost, animationDuration, animationDurationTen, broadcastRare, broadcastThreshold, slot, pityRules, enabled, null);
+    }
+
+    public GachaMachine(String id, String name, List<String> description, String icon, double cost,
+                        int animationDuration, int animationDurationTen, boolean broadcastRare, double broadcastThreshold, int slot,
+                        List<PityRule> pityRules, boolean enabled, DisplayEntityConfig displayConfig) {
         this.id = id;
         this.name = name;
         this.description = description != null ? description : new ArrayList<>();
@@ -41,10 +50,11 @@ public class GachaMachine {
         this.broadcastThreshold = broadcastThreshold;
         this.slot = slot;
         this.pityRules = pityRules != null ? pityRules.stream()
-            .sorted(Comparator.comparingInt(PityRule::getCount).reversed()) // 按次数降序，先检查高保底
+            .sorted(Comparator.comparingInt(PityRule::getCount).reversed())
             .collect(Collectors.toList()) : new ArrayList<>();
         this.rewards = new ArrayList<>();
         this.enabled = enabled;
+        this.displayConfig = displayConfig;
     }
 
     public void addReward(GachaReward reward) {
@@ -222,5 +232,19 @@ public class GachaMachine {
             item = new ItemStack(Material.CHEST);
         }
         return item;
+    }
+
+    /**
+     * 获取展示实体配置（可能为null，表示使用默认配置）
+     */
+    public DisplayEntityConfig getDisplayConfig() {
+        return displayConfig;
+    }
+
+    /**
+     * 检查是否有自定义展示实体配置
+     */
+    public boolean hasDisplayConfig() {
+        return displayConfig != null;
     }
 }

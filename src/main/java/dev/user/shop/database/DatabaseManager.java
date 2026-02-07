@@ -248,6 +248,30 @@ public class DatabaseManager {
                     ")";
             stmt.execute(pityCounterTable);
 
+            // 扭蛋机方块绑定表
+            String blockBindingIdColumn = isMySQL ? "id BIGINT AUTO_INCREMENT PRIMARY KEY" : "id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY";
+            String blockBindingUnique = isMySQL ? "UNIQUE KEY unique_block (world_uuid, block_x, block_y, block_z)" : "UNIQUE (world_uuid, block_x, block_y, block_z)";
+            String blockBindingTable = "CREATE TABLE IF NOT EXISTS gacha_block_bindings (" +
+                    blockBindingIdColumn + "," +
+                    "    world_uuid VARCHAR(36) NOT NULL," +
+                    "    block_x INT NOT NULL," +
+                    "    block_y INT NOT NULL," +
+                    "    block_z INT NOT NULL," +
+                    "    machine_id VARCHAR(32) NOT NULL," +
+                    "    created_by VARCHAR(36)," +
+                    "    created_at BIGINT NOT NULL," +
+                    "    display_entity_uuid VARCHAR(36)," +
+                    "    outdated BOOLEAN DEFAULT FALSE," +
+                    "    " + blockBindingUnique +
+                    ")";
+            stmt.execute(blockBindingTable);
+
+            // 数据库迁移：添加缺失的 display_entity_uuid 列
+            migrateAddDisplayEntityUuidColumn(conn);
+
+            // 数据库迁移：添加缺失的 outdated 列
+            migrateAddOutdatedColumn(conn);
+
             // 创建索引（H2和MySQL的索引语法略有不同）
             createIndexes(stmt, isMySQL);
         }
@@ -263,6 +287,8 @@ public class DatabaseManager {
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_gacha_player ON gacha_records (player_uuid)");
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_gacha_timestamp ON gacha_records (timestamp)");
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_pity_player ON gacha_pity (player_uuid)");
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_block_world ON gacha_block_bindings (world_uuid)");
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_block_machine ON gacha_block_bindings (machine_id)");
         } else {
             // H2语法
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_player ON transactions (player_uuid)");
@@ -270,6 +296,8 @@ public class DatabaseManager {
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_gacha_player ON gacha_records (player_uuid)");
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_gacha_timestamp ON gacha_records (timestamp)");
             stmt.execute("CREATE INDEX IF NOT EXISTS idx_pity_player ON gacha_pity (player_uuid)");
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_block_world ON gacha_block_bindings (world_uuid)");
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_block_machine ON gacha_block_bindings (machine_id)");
         }
     }
 
@@ -297,6 +325,65 @@ public class DatabaseManager {
             }
         } catch (SQLException e) {
             plugin.getLogger().warning("[数据库迁移] 添加 daily_limit 列失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 数据库迁移：添加 display_entity_uuid 列到 gacha_block_bindings 表
+     */
+    private void migrateAddDisplayEntityUuidColumn(Connection conn) {
+        try {
+            // 检查列是否存在
+            DatabaseMetaData metaData = conn.getMetaData();
+            boolean columnExists = false;
+            try (ResultSet columns = metaData.getColumns(null, null, "GACHA_BLOCK_BINDINGS", "DISPLAY_ENTITY_UUID")) {
+                if (columns.next()) {
+                    columnExists = true;
+                }
+            }
+
+            // 如果列不存在，添加它
+            if (!columnExists) {
+                plugin.getLogger().info("[数据库迁移] 正在添加 display_entity_uuid 列到 gacha_block_bindings 表...");
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute("ALTER TABLE gacha_block_bindings ADD COLUMN display_entity_uuid VARCHAR(36)");
+                    plugin.getLogger().info("[数据库迁移] display_entity_uuid 列添加成功");
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().warning("[数据库迁移] 添加 display_entity_uuid 列失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 数据库迁移：添加 outdated 列到 gacha_block_bindings 表
+     */
+    private void migrateAddOutdatedColumn(Connection conn) {
+        try {
+            // 检查列是否存在
+            DatabaseMetaData metaData = conn.getMetaData();
+            boolean columnExists = false;
+            try (ResultSet columns = metaData.getColumns(null, null, "GACHA_BLOCK_BINDINGS", "OUTDATED")) {
+                if (columns.next()) {
+                    columnExists = true;
+                }
+            }
+
+            // 如果列不存在，添加它
+            if (!columnExists) {
+                plugin.getLogger().info("[数据库迁移] 正在添加 outdated 列到 gacha_block_bindings 表...");
+                try (Statement stmt = conn.createStatement()) {
+                    boolean isMySQL = plugin.getDatabaseManager().isMySQL();
+                    if (isMySQL) {
+                        stmt.execute("ALTER TABLE gacha_block_bindings ADD COLUMN outdated BOOLEAN DEFAULT FALSE");
+                    } else {
+                        stmt.execute("ALTER TABLE gacha_block_bindings ADD COLUMN outdated BOOLEAN DEFAULT FALSE");
+                    }
+                    plugin.getLogger().info("[数据库迁移] outdated 列添加成功");
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().warning("[数据库迁移] 添加 outdated 列失败: " + e.getMessage());
         }
     }
 
