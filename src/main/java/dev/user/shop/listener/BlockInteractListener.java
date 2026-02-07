@@ -36,11 +36,6 @@ public class BlockInteractListener implements Listener {
 
         Player player = event.getPlayer();
 
-        // 检查扭蛋功能是否启用
-        if (!plugin.getShopConfig().isGachaEnabled()) {
-            return;
-        }
-
         // 检查该方块是否绑定了扭蛋机
         String machineId = plugin.getGachaBlockManager().getMachineByBlock(block);
         if (machineId == null) {
@@ -54,8 +49,14 @@ public class BlockInteractListener implements Listener {
             return;
         }
 
-        // 取消原事件，防止破坏方块或打开容器
+        // 取消原事件，防止破坏方块或打开容器（即使扭蛋禁用也要保护方块）
         event.setCancelled(true);
+
+        // 检查扭蛋功能是否启用
+        if (!plugin.getShopConfig().isGachaEnabled()) {
+            player.sendMessage(plugin.getShopConfig().getMessage("feature-disabled"));
+            return;
+        }
 
         // 检查权限
         if (!player.hasPermission("foliashop.gacha.use")) {
