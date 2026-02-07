@@ -68,6 +68,10 @@ public class FoliaShopCommand implements CommandExecutor, TabCompleter {
                     sender.sendMessage("§c此命令只能由玩家执行。");
                     return true;
                 }
+                if (!plugin.getShopConfig().isGachaEnabled()) {
+                    player.sendMessage(plugin.getShopConfig().getMessage("feature-disabled"));
+                    return true;
+                }
                 if (!player.hasPermission("foliashop.gacha.use")) {
                     player.sendMessage(plugin.getShopConfig().getMessage("no-permission"));
                     return true;

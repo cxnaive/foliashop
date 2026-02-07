@@ -36,6 +36,11 @@ public class BlockInteractListener implements Listener {
 
         Player player = event.getPlayer();
 
+        // 检查扭蛋功能是否启用
+        if (!plugin.getShopConfig().isGachaEnabled()) {
+            return;
+        }
+
         // 检查该方块是否绑定了扭蛋机
         String machineId = plugin.getGachaBlockManager().getMachineByBlock(block);
         if (machineId == null) {

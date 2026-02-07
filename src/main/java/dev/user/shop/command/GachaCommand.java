@@ -28,6 +28,11 @@ public class GachaCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        if (!plugin.getShopConfig().isGachaEnabled()) {
+            player.sendMessage(plugin.getShopConfig().getMessage("feature-disabled"));
+            return true;
+        }
+
         if (!player.hasPermission("foliashop.gacha.use")) {
             player.sendMessage(plugin.getShopConfig().getMessage("no-permission"));
             return true;
