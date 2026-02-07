@@ -25,10 +25,10 @@ public class FoliaShopPlugin extends JavaPlugin {
     private DatabaseManager databaseManager;
     private DatabaseQueue databaseQueue;
     private EconomyManager economyManager;
-    private ShopManager shopManager;
-    private GachaManager gachaManager;
-    private GachaBlockManager gachaBlockManager;
-    private GachaDisplayManager gachaDisplayManager;
+    private volatile ShopManager shopManager;
+    private volatile GachaManager gachaManager;
+    private volatile GachaBlockManager gachaBlockManager;
+    private volatile GachaDisplayManager gachaDisplayManager;
 
     @Override
     public void onEnable() {

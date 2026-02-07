@@ -346,11 +346,12 @@ public class GachaManager {
             ps.setString(1, playerUuid.toString());
             ps.setString(2, machineId);
             ps.setString(3, ruleHash);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) {
-                return rs.getInt("draw_count");
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("draw_count");
+                }
+                return 0;
             }
-            return 0;
         }
     }
 

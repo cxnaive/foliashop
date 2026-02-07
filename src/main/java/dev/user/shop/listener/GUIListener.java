@@ -5,6 +5,7 @@ import dev.user.shop.gui.AbstractGUI;
 import dev.user.shop.gui.GUIManager;
 import dev.user.shop.gui.SellGUI;
 import dev.user.shop.gui.ShopItemsGUI;
+import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -15,6 +16,9 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class GUIListener implements Listener {
 
@@ -169,22 +173,49 @@ public class GUIListener implements Listener {
         if (gui != null) {
             // 如果是出售界面，将格子里的物品返回给玩家
             if (gui instanceof SellGUI sellGUI) {
-                for (int slot : sellGUI.getSellSlots()) {
-                    ItemStack item = sellGUI.getInventory().getItem(slot);
-                    if (item != null && item.getType().isItem()) {
-                        // 尝试将物品返回给玩家
-                        java.util.HashMap<Integer, ItemStack> leftover = player.getInventory().addItem(item);
-                        if (!leftover.isEmpty()) {
-                            // 如果背包满了，掉落在地上
-                            for (ItemStack drop : leftover.values()) {
-                                player.getWorld().dropItemNaturally(player.getLocation(), drop);
-                            }
-                        }
-                    }
-                }
+                returnItemsToPlayer(player, sellGUI);
             }
 
             gui.onClose();
         }
+    }
+
+    /**
+     * 将出售界面的物品返回给玩家
+     * 在 Folia 环境下需要在玩家所在区域线程执行
+     */
+    private void returnItemsToPlayer(Player player, SellGUI sellGUI) {
+        // 获取玩家位置用于调度到正确的区域线程
+        Location playerLoc = player.getLocation();
+
+        // 收集需要返回的物品
+        List<ItemStack> itemsToReturn = new ArrayList<>();
+        for (int slot : sellGUI.getSellSlots()) {
+            ItemStack item = sellGUI.getInventory().getItem(slot);
+            if (item != null && item.getType().isItem()) {
+                itemsToReturn.add(item);
+            }
+        }
+
+        if (itemsToReturn.isEmpty()) {
+            return;
+        }
+
+        // 在区域线程执行物品操作
+        org.bukkit.Bukkit.getRegionScheduler().execute(
+            dev.user.shop.FoliaShopPlugin.getInstance(),
+            playerLoc,
+            () -> {
+                for (ItemStack item : itemsToReturn) {
+                    java.util.HashMap<Integer, ItemStack> leftover = player.getInventory().addItem(item);
+                    if (!leftover.isEmpty()) {
+                        // 如果背包满了，掉落在地上
+                        for (ItemStack drop : leftover.values()) {
+                            player.getWorld().dropItemNaturally(player.getLocation(), drop);
+                        }
+                    }
+                }
+            }
+        );
     }
 }
