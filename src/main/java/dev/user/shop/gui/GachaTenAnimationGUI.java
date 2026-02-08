@@ -177,6 +177,9 @@ public class GachaTenAnimationGUI extends AbstractGUI {
             display = display.clone();
             display.setAmount(reward.getAmount());
 
+            // 设置总概率以计算实际概率
+            reward.setTotalProbability(machine.getTotalProbability());
+
             List<String> lore = new ArrayList<>();
             lore.add("§7稀有度: " + reward.getRarityColor() + reward.getRarityPercent());
             lore.add("§e已揭示!");
@@ -247,6 +250,9 @@ public class GachaTenAnimationGUI extends AbstractGUI {
         if (display != null) {
             display = display.clone();
             display.setAmount(reward.getAmount());
+
+            // 设置总概率以计算实际概率
+            reward.setTotalProbability(machine.getTotalProbability());
 
             List<String> lore = new ArrayList<>();
             lore.add("");

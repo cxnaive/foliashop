@@ -375,6 +375,19 @@ public class ShopConfig {
     }
 
     /**
+     * 获取原始消息（不替换占位符，不转换 MiniMessage）
+     * 用于需要特殊处理占位符的场景（如广播中的可翻译物品）
+     */
+    public String getRawMessage(String key) {
+        String msg = messages.get(key);
+        if (msg == null) {
+            msg = "";
+        }
+        // 只替换 prefix，保留其他占位符和 MiniMessage 标签
+        return msg.replace("<prefix>", messages.getOrDefault("prefix", ""));
+    }
+
+    /**
      * 将 MiniMessage 格式转换为传统 § 颜色代码
      */
     public String convertMiniMessage(String message) {

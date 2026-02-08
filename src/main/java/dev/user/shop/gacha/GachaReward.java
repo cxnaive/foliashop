@@ -18,6 +18,7 @@ public class GachaReward {
     private final boolean broadcast;
     private ItemStack displayItem;
     private Map<String, String> components; // NBT 组件配置
+    private double totalProbability; // 用于计算实际概率
 
     public GachaReward(String id, String itemKey, int amount, double probability, String displayName, boolean broadcast) {
         this(id, itemKey, amount, probability, displayName, broadcast, null);
@@ -49,6 +50,22 @@ public class GachaReward {
     public boolean hasComponents() { return components != null && !components.isEmpty(); }
 
     /**
+     * 设置总概率（用于计算实际概率）
+     */
+    public void setTotalProbability(double totalProbability) { this.totalProbability = totalProbability; }
+
+    /**
+     * 获取实际概率（归一化后的概率）
+     * @return 实际概率（0-1之间）
+     */
+    public double getActualProbability() {
+        if (totalProbability <= 0) {
+            return probability; // 如果没有设置总概率，返回原始概率
+        }
+        return probability / totalProbability;
+    }
+
+    /**
      * 获取稀有度等级（基于概率）
      */
     public int getRarityLevel() {
@@ -60,10 +77,10 @@ public class GachaReward {
     }
 
     /**
-     * 获取稀有度百分比显示
+     * 获取稀有度百分比显示（使用实际概率）
      */
     public String getRarityPercent() {
-        return String.format("%.1f%%", probability * 100);
+        return String.format("%.1f%%", getActualProbability() * 100);
     }
 
     public String getRarityColor() {

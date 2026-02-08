@@ -60,6 +60,13 @@ public class FoliaShopPlugin extends JavaPlugin {
             getLogger().info("使用 MySQL 数据库，支持跨服部署");
         }
 
+        // 概率显示警告
+        getLogger().warning("============================================");
+        getLogger().warning("扭蛋机概率显示已改为实际概率（归一化后）");
+        getLogger().warning("注意：保底规则、稀有度判断仍使用配置中的相对概率");
+        getLogger().warning("这不会影响抽奖逻辑，仅影响概率显示");
+        getLogger().warning("============================================");
+
         // 初始化数据库队列
         this.databaseQueue = new DatabaseQueue(this);
 

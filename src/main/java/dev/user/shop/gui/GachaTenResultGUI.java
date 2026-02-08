@@ -97,6 +97,9 @@ public class GachaTenResultGUI extends AbstractGUI {
         display = display.clone();
         display.setAmount(reward.getAmount());
 
+        // 设置总概率以计算实际概率
+        reward.setTotalProbability(machine.getTotalProbability());
+
         List<String> lore = new ArrayList<>();
         lore.add("");
         lore.add("§7稀有度: " + reward.getRarityColor() + reward.getRarityPercent());
@@ -190,12 +193,9 @@ public class GachaTenResultGUI extends AbstractGUI {
         // 广播稀有奖品
         if (machine.shouldBroadcast(reward)) {
             String itemName = ItemUtil.getDisplayName(rewardItem);
-            String broadcast = plugin.getShopConfig().getMessage("gacha-broadcast",
-                java.util.Map.of("player", player.getName(),
-                                "machine", machine.getName(),
-                                "item", itemName));
-            // 处理颜色代码（§ 格式）
-            Component broadcastComponent = ItemUtil.deserializeLegacyMessage(broadcast);
+            String broadcastTemplate = plugin.getShopConfig().getRawMessage("gacha-broadcast");
+            Component broadcastComponent = ItemUtil.createBroadcastComponent(
+                broadcastTemplate, player.getName(), machine.getName(), itemName);
             plugin.getServer().broadcast(broadcastComponent);
         }
 

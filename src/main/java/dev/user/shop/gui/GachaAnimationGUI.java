@@ -225,6 +225,9 @@ public class GachaAnimationGUI extends AbstractGUI {
             ItemStack display = rewardItem.clone();
             display.setAmount(finalReward.getAmount());
 
+            // 设置总概率以计算实际概率
+            finalReward.setTotalProbability(machine.getTotalProbability());
+
             List<String> lore = new ArrayList<>();
             lore.add("");
             lore.add("§7稀有度: " + finalReward.getRarityColor() + finalReward.getRarityPercent());
@@ -252,6 +255,8 @@ public class GachaAnimationGUI extends AbstractGUI {
         }, 5L);
 
         // 动画完成后显示提示
+        // 确保总概率已设置
+        finalReward.setTotalProbability(machine.getTotalProbability());
         if (isPityTriggered) {
             player.sendMessage("§6§l✦ 触发保底机制！获得稀有度<" + finalReward.getRarityPercent() + ">奖品！");
         } else if (!satisfiedRules.isEmpty()) {
@@ -330,12 +335,9 @@ public class GachaAnimationGUI extends AbstractGUI {
 
         // 广播稀有奖品
         if (machine.shouldBroadcast(finalReward)) {
-            String broadcast = plugin.getShopConfig().getMessage("gacha-broadcast",
-                java.util.Map.of("player", player.getName(),
-                                "machine", machine.getName(),
-                                "item", itemName));
-            // 处理颜色代码（§ 格式）
-            Component broadcastComponent = ItemUtil.deserializeLegacyMessage(broadcast);
+            String broadcastTemplate = plugin.getShopConfig().getRawMessage("gacha-broadcast");
+            Component broadcastComponent = ItemUtil.createBroadcastComponent(
+                broadcastTemplate, player.getName(), machine.getName(), itemName);
             plugin.getServer().broadcast(broadcastComponent);
         }
 

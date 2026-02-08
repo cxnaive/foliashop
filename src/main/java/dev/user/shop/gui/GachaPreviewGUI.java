@@ -42,9 +42,12 @@ public class GachaPreviewGUI extends AbstractGUI {
             ItemStack item = display.clone();
             item.setAmount(reward.getAmount());
 
+            // 设置总概率以计算实际概率
+            reward.setTotalProbability(machine.getTotalProbability());
+
             List<String> lore = new ArrayList<>();
             lore.add("");
-            lore.add("§7概率: §e" + String.format("%.2f", reward.getProbability() * 100) + "%");
+            lore.add("§7概率: §e" + String.format("%.2f", reward.getActualProbability() * 100) + "%");
             lore.add("§7稀有度: " + reward.getRarityColor() + reward.getRarityPercent());
             if (reward.shouldBroadcast()) {
                 lore.add("§6★ 稀有奖品");

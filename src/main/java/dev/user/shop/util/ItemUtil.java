@@ -83,6 +83,14 @@ public class ItemUtil {
         }
 
         ItemMeta meta = item.getItemMeta();
+        // 优先检查是否有CustomName
+        if (meta != null && meta.hasCustomName()) {
+            Component customName = meta.customName();
+            if (customName != null) {
+                return LegacyComponentSerializer.legacySection().serialize(customName);
+            }
+        }
+        
         // 优先检查是否有ItemName名称（CE物品通常有）
         if (meta != null && meta.hasItemName()) {
             Component itemName = meta.itemName();
@@ -255,6 +263,113 @@ public class ItemUtil {
             return net.kyori.adventure.text.Component.empty();
         }
         return net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection().deserialize(message);
+    }
+
+    /**
+     * 创建广播消息，支持可翻译的物品名称
+     * 配置格式: "<gold><bold>🎉 恭喜 {player} 从 {machine} 抽中了 {item}！"
+     * 其中 {item} 会被特殊处理为 Component.translatable()
+     *
+     * @param template 消息模板（MiniMessage 格式）
+     * @param player 玩家名称
+     * @param machine 扭蛋机名称
+     * @param itemName 物品名称（包含 <lang:...> 格式）
+     * @return 构建好的 Component
+     */
+    public static net.kyori.adventure.text.Component createBroadcastComponent(
+            String template, String player, String machine, String itemName) {
+
+        // 提取翻译 key（去掉 <lang: 和 >）
+        String translationKey = extractTranslationKey(itemName);
+
+        // 将模板按 {item} 分割
+        String[] parts = template.split("\\{item\\}");
+
+        net.kyori.adventure.text.Component result = net.kyori.adventure.text.Component.empty();
+
+        for (int i = 0; i < parts.length; i++) {
+            String part = parts[i];
+
+            // 替换 {player} 和 {machine}
+            part = part.replace("{player}", player).replace("{machine}", machine);
+
+            // 解析 MiniMessage 格式（<gold><bold> 等）
+            result = result.append(parseMiniMessage(part));
+
+            // 在分割点之间插入可翻译的物品名称（除了最后一部分）
+            if (i < parts.length - 1 && translationKey != null) {
+                result = result.append(net.kyori.adventure.text.Component.translatable(translationKey));
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * 从 <lang:item.minecraft.diamond> 提取 item.minecraft.diamond
+     */
+    private static String extractTranslationKey(String itemName) {
+        if (itemName == null || itemName.isEmpty()) {
+            return "item.minecraft.air";
+        }
+        if (itemName.startsWith("<lang:") && itemName.endsWith(">")) {
+            return itemName.substring(6, itemName.length() - 1);
+        }
+        return itemName;
+    }
+
+    /**
+     * 解析 MiniMessage 格式（简单的标签支持）
+     */
+    private static net.kyori.adventure.text.Component parseMiniMessage(String message) {
+        if (message == null || message.isEmpty()) {
+            return net.kyori.adventure.text.Component.empty();
+        }
+
+        // 使用 MiniMessage 解析器（如果可用）
+        try {
+            return net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().deserialize(message);
+        } catch (Exception e) {
+            // 如果 MiniMessage 不可用，回退到 LegacyComponentSerializer
+            // 将 <color> 标签转换为 § 格式
+            String legacyMessage = convertMiniMessageToLegacy(message);
+            return net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection().deserialize(legacyMessage);
+        }
+    }
+
+    /**
+     * 简单的 MiniMessage 到 Legacy 格式转换
+     */
+    private static String convertMiniMessageToLegacy(String message) {
+        if (message == null) return "";
+
+        // 简单的颜色标签转换
+        message = message.replace("<gold>", "§6").replace("</gold>", "§r");
+        message = message.replace("<red>", "§c").replace("</red>", "§r");
+        message = message.replace("<green>", "§a").replace("</green>", "§r");
+        message = message.replace("<blue>", "§9").replace("</blue>", "§r");
+        message = message.replace("<yellow>", "§e").replace("</yellow>", "§r");
+        message = message.replace("<white>", "§f").replace("</white>", "§r");
+        message = message.replace("<black>", "§0").replace("</black>", "§r");
+        message = message.replace("<gray>", "§7").replace("</gray>", "§r");
+        message = message.replace("<dark_gray>", "§8").replace("</dark_gray>", "§r");
+        message = message.replace("<aqua>", "§b").replace("</aqua>", "§r");
+        message = message.replace("<dark_aqua>", "§3").replace("</dark_aqua>", "§r");
+        message = message.replace("<light_purple>", "§d").replace("</light_purple>", "§r");
+        message = message.replace("<dark_purple>", "§5").replace("</dark_purple>", "§r");
+        message = message.replace("<dark_red>", "§4").replace("</dark_red>", "§r");
+        message = message.replace("<dark_green>", "§2").replace("</dark_green>", "§r");
+        message = message.replace("<dark_blue>", "§1").replace("</dark_blue>", "§r");
+
+        // 格式标签
+        message = message.replace("<bold>", "§l").replace("</bold>", "§r");
+        message = message.replace("<italic>", "§o").replace("</italic>", "§r");
+        message = message.replace("<underlined>", "§n").replace("</underlined>", "§r");
+        message = message.replace("<strikethrough>", "§m").replace("</strikethrough>", "§r");
+        message = message.replace("<obfuscated>", "§k").replace("</obfuscated>", "§r");
+        message = message.replace("<reset>", "§r");
+
+        return message;
     }
 
     /**
