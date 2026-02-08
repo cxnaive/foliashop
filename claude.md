@@ -87,6 +87,14 @@
 2. **NBTPathUtils工具类** - 从player_scan项目引入，支持复杂NBT路径解析
 3. **Lore显示优化** - GUI中使用 `addLore` 替代 `setLore`，保留物品原有Lore
 4. **NBT-API依赖** - 添加 `item-nbt-api-plugin:2.15.5` 依赖
+5. **代码问题修复**
+   - 修复 ResultSet 未关闭导致的资源泄漏
+   - 修复 H2 MERGE INTO 语法不正确问题
+   - 修复异步回调中未检查玩家在线状态
+   - 修复 GUIManager 使用普通 HashMap 的并发安全问题
+   - 重构 updatePityCounters 复用 batchUpdatePityCounters 逻辑
+   - 优化数据库查询性能（批量查询替代 N+1）
+   - 修复 last_pity_reward 被错误覆盖为 null 的问题
 
 ## 待办事项
 - [ ] 考虑使用 Component API 替代弃用的 String 标题方法
