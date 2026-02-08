@@ -179,10 +179,7 @@ public class ShopManager {
             int dailyLimit = itemSection.getInt("daily-limit", 0);
 
             // 加载 NBT 组件配置
-            Object componentsObj = itemSection.get("components");
-            System.out.println("[ShopManager] Item " + id + " components raw: " + componentsObj);
-            Map<String, String> components = ItemUtil.parseComponents(componentsObj);
-            System.out.println("[ShopManager] Item " + id + " parsed components: " + components);
+            Map<String, String> components = ItemUtil.parseComponents(itemSection.get("components"));
 
             ShopItem existingItem = items.get(id);
             if (existingItem != null) {
@@ -546,8 +543,11 @@ public class ShopManager {
         // 移除旧的物品
         items.remove(id);
 
+        // 加载 NBT 组件配置
+        Map<String, String> components = ItemUtil.parseComponents(itemSection.get("components"));
+
         // 创建新物品
-        ShopItem shopItem = new ShopItem(id, itemKey, buyPrice, sellPrice, stock, category, slot, dailyLimit);
+        ShopItem shopItem = new ShopItem(id, itemKey, buyPrice, sellPrice, stock, category, slot, dailyLimit, components);
         ItemStack item = ItemUtil.createItemFromKey(plugin, itemKey);
         if (item != null) {
             shopItem.setDisplayItem(item);
@@ -691,7 +691,8 @@ public class ShopManager {
                     updateSql = "INSERT INTO daily_limits (player_uuid, item_id, buy_count, last_date) VALUES (?, ?, ?, ?) " +
                               "ON DUPLICATE KEY UPDATE buy_count = ?, last_date = ?";
                 } else {
-                    updateSql = "MERGE INTO daily_limits (player_uuid, item_id, buy_count, last_date) VALUES (?, ?, ?, ?)";
+                    // H2: 使用 MERGE INTO ... KEY(...) 语法支持 UPSERT
+                    updateSql = "MERGE INTO daily_limits KEY(player_uuid, item_id) VALUES (?, ?, ?, ?)";
                 }
 
                 try (PreparedStatement ps = conn.prepareStatement(updateSql)) {

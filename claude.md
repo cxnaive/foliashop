@@ -77,6 +77,17 @@
 - HikariCP 6.2.1
 - H2 / MySQL
 
+## 最近更新
+
+### 2025-02-08
+1. **NBT组件系统** - 为商店物品、扭蛋奖励、扭蛋机ICON添加NBT组件支持
+   - 支持附魔、自定义名称、Lore、自定义数据等
+   - 配置格式: `path+value`，如 `minecraft:enchantments+{'sharpness':5}`
+   - 数据库新增 `components` 列存储JSON格式数据
+2. **NBTPathUtils工具类** - 从player_scan项目引入，支持复杂NBT路径解析
+3. **Lore显示优化** - GUI中使用 `addLore` 替代 `setLore`，保留物品原有Lore
+4. **NBT-API依赖** - 添加 `item-nbt-api-plugin:2.15.5` 依赖
+
 ## 待办事项
 - [ ] 考虑使用 Component API 替代弃用的 String 标题方法
 - [ ] CustomModelData 新 API 待稳定后更新

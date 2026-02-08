@@ -7,14 +7,16 @@ import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 public class GachaHistoryGUI extends AbstractGUI {
 
     private final GachaMachineGUI previousGUI;
-    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm");
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+            .withZone(ZoneId.systemDefault());
 
     public GachaHistoryGUI(FoliaShopPlugin plugin, Player player, GachaMachineGUI previousGUI) {
         super(plugin, player, plugin.getShopConfig().getGUITitle("gacha-history"), 36);
@@ -88,7 +90,7 @@ public class GachaHistoryGUI extends AbstractGUI {
             item = new ItemStack(Material.CHEST);
         }
 
-        String timeStr = DATE_FORMAT.format(new Date(record.getTimestamp()));
+        String timeStr = DATE_FORMAT.format(Instant.ofEpochMilli(record.getTimestamp()));
         String machineName = getMachineDisplayName(record.getMachineId());
 
         // 保持物品原始名称，只在lore中添加信息

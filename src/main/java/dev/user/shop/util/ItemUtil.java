@@ -274,19 +274,12 @@ public class ItemUtil {
                 String valueStr = entry.getValue();
 
                 try {
-                    // 调试信息
-                    System.out.println("[NBT Debug] Processing: path=" + path + ", value=" + valueStr);
-
                     // 解析值
                     Object value = NBTPathUtils.parseValue(valueStr);
-                    System.out.println("[NBT Debug] Parsed value: " + value + " (type: " + (value != null ? value.getClass().getSimpleName() : "null") + ")");
 
                     // 应用设置
                     applySetNbt(nbt, path, value);
                 } catch (Exception e) {
-                    // 调试信息
-                    System.out.println("[NBT Debug] Error processing " + path + ": " + e.getMessage());
-                    e.printStackTrace();
                     // 忽略单个组件的错误，继续处理其他组件
                 }
             }
@@ -334,7 +327,6 @@ public class ItemUtil {
         int firstPlus = entry.indexOf('+');
         if (firstPlus == -1) {
             // 没有 +，视为只有路径，值为空
-            System.out.println("[ItemUtil] Invalid component format (no +): " + entry);
             return;
         }
 
@@ -343,7 +335,6 @@ public class ItemUtil {
 
         if (!path.isEmpty()) {
             components.put(path, value);
-            System.out.println("[ItemUtil] Parsed component: " + path + " = " + value);
         }
     }
 
@@ -379,7 +370,6 @@ public class ItemUtil {
     public static void applySetNbt(de.tr7zw.nbtapi.iface.ReadWriteNBT nbt, String path, Object value) {
         NBTPathUtils.PathNavigationResult result = NBTPathUtils.navigateToParent(nbt, path);
         if (!result.isSuccess()) {
-            System.out.println("[NBT Debug] Navigate failed for path: " + path);
             return;
         }
 
@@ -391,21 +381,14 @@ public class ItemUtil {
         if (lastSegment.hasIndex()) {
             if (value instanceof de.tr7zw.nbtapi.iface.ReadableNBT) {
                 NBTPathUtils.replaceInCompoundList(parent, key, lastSegment.getIndex(), (de.tr7zw.nbtapi.iface.ReadableNBT) value);
-                System.out.println("[NBT Debug] Replaced in compound list at index " + lastSegment.getIndex());
-            } else {
-                System.out.println("[NBT Debug] Cannot replace in list: value is not NBT compound");
             }
         } else if (lastSegment.hasFilter()) {
             Integer index = NBTPathUtils.resolveListFilterIndex(parent, key, lastSegment.getFilter());
             if (index != null && value instanceof de.tr7zw.nbtapi.iface.ReadableNBT) {
                 NBTPathUtils.replaceInCompoundList(parent, key, index, (de.tr7zw.nbtapi.iface.ReadableNBT) value);
-                System.out.println("[NBT Debug] Replaced in compound list at filtered index " + index);
-            } else {
-                System.out.println("[NBT Debug] Filter did not match or value is not NBT compound");
             }
         } else {
             NBTPathUtils.setTypedValue(parent, key, value);
-            System.out.println("[NBT Debug] Value set successfully at " + key);
         }
     }
 

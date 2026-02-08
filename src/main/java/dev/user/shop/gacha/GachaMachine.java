@@ -243,16 +243,9 @@ public class GachaMachine {
         if (item == null) {
             item = new ItemStack(Material.CHEST);
         }
-        // 调试信息
-        System.out.println("[GachaMachine] Creating icon for " + id + ", icon=" + icon);
-        System.out.println("[GachaMachine] iconComponents=" + iconComponents);
-
         // 应用 ICON NBT 组件
         if (iconComponents != null && !iconComponents.isEmpty()) {
-            System.out.println("[GachaMachine] Applying " + iconComponents.size() + " components");
             item = applyComponents(item, iconComponents);
-        } else {
-            System.out.println("[GachaMachine] No components to apply");
         }
         return item;
     }

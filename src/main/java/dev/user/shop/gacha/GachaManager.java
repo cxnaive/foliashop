@@ -80,7 +80,6 @@ public class GachaManager {
             Map<String, String> iconComponents = ItemUtil.parseComponents(
                 machineSection.get("icon-components")
             );
-            System.out.println("[GachaManager] Loaded icon-components for " + machineId + ": " + iconComponents);
 
             GachaMachine machine = new GachaMachine(
                 machineId, name, description, icon, cost,
@@ -91,11 +90,9 @@ public class GachaManager {
             // 先尝试作为 ConfigurationSection 读取（支持 comments 和复杂结构）
             ConfigurationSection rewardsSection = machineSection.getConfigurationSection("rewards");
             List<Map<?, ?>> rewardsList = machineSection.getMapList("rewards");
-            System.out.println("[GachaManager] Loading rewards for " + machineId + ", count: " + rewardsList.size());
 
             for (int i = 0; i < rewardsList.size(); i++) {
                 Map<?, ?> rewardMap = rewardsList.get(i);
-                System.out.println("[GachaManager] Processing reward " + i + ": " + rewardMap.get("id"));
                 String id = String.valueOf(rewardMap.get("id"));
                 String itemKey = String.valueOf(rewardMap.get("item"));
                 int amount = rewardMap.get("amount") instanceof Number ? ((Number) rewardMap.get("amount")).intValue() : 1;
@@ -109,10 +106,7 @@ public class GachaManager {
 
                 // 加载奖品 NBT 组件配置
                 // 直接从 rewardMap 获取 components（getMapList 已经把 YAML 列表项转为 Map）
-                Object componentsObj = rewardMap.get("components");
-                System.out.println("[GachaManager] Reward " + id + " components raw: " + componentsObj);
-                Map<String, String> rewardComponents = ItemUtil.parseComponents(componentsObj);
-                System.out.println("[GachaManager] Reward " + id + " parsed components: " + rewardComponents);
+                Map<String, String> rewardComponents = ItemUtil.parseComponents(rewardMap.get("components"));
 
                 GachaReward reward = new GachaReward(id, itemKey, amount, probability, displayName, broadcast, rewardComponents);
 
@@ -247,9 +241,10 @@ public class GachaManager {
                     "SELECT rule_hash, draw_count FROM gacha_pity WHERE player_uuid = ? AND machine_id = ?")) {
                 ps.setString(1, playerUuid.toString());
                 ps.setString(2, machineId);
-                ResultSet rs = ps.executeQuery();
-                while (rs.next()) {
-                    counters.put(rs.getString("rule_hash"), rs.getInt("draw_count"));
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        counters.put(rs.getString("rule_hash"), rs.getInt("draw_count"));
+                    }
                 }
             }
             return counters;
@@ -260,58 +255,156 @@ public class GachaManager {
     }
 
     /**
-     * 更新保底计数
+     * 更新保底计数（单抽逻辑）
+     * 复用 batchUpdatePityCounters 实现，避免代码重复
      * @param rules 所有保底规则列表
      * @param satisfiedRules 奖品满足的规则列表（这些规则的计数器重置为0）
      * @param rewardId 奖励ID
      */
     public void updatePityCounters(UUID playerUuid, String machineId, List<PityRule> rules, List<PityRule> satisfiedRules, String rewardId) {
         plugin.getDatabaseQueue().submit("updatePityCounters", conn -> {
-            // 构建满足规则的哈希集合，方便快速查找
+            // 构建满足规则的哈希集合
             java.util.Set<String> satisfiedHashes = satisfiedRules.stream()
                 .map(PityRule::getRuleHash)
                 .collect(java.util.HashSet::new, java.util.HashSet::add, java.util.HashSet::addAll);
 
-            // 为每个规则更新计数
+            // 查询当前计数
+            java.util.Map<String, Integer> currentCounts = new java.util.HashMap<>();
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "SELECT rule_hash, draw_count FROM gacha_pity WHERE player_uuid = ? AND machine_id = ?")) {
+                ps.setString(1, playerUuid.toString());
+                ps.setString(2, machineId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        currentCounts.put(rs.getString("rule_hash"), rs.getInt("draw_count"));
+                    }
+                }
+            }
+
+            // 计算新的计数器值
+            java.util.Map<String, Integer> newCounters = new java.util.HashMap<>();
             for (PityRule rule : rules) {
                 String ruleHash = rule.getRuleHash();
-                int newCount;
                 if (satisfiedHashes.contains(ruleHash)) {
-                    // 满足条件的规则重置为0
-                    newCount = 0;
+                    newCounters.put(ruleHash, 0); // 触发保底，重置为0
                 } else {
-                    // 其他规则正常+1
-                    newCount = getCurrentCount(conn, playerUuid, machineId, ruleHash) + 1;
+                    newCounters.put(ruleHash, currentCounts.getOrDefault(ruleHash, 0) + 1);
+                }
+            }
+
+            // 确定最后触发的保底规则（单抽场景最多只有一个）
+            PityRule lastTriggeredRule = satisfiedRules.isEmpty() ? null : satisfiedRules.get(0);
+
+            // 调用内部批量更新方法
+            doBatchUpdatePityCounters(conn, playerUuid, machineId, rules, newCounters, lastTriggeredRule, rewardId);
+            return null;
+        });
+    }
+
+    /**
+     * 内部方法：执行批量更新保底计数（实际的 SQL 执行逻辑）
+     * 被 updatePityCounters 和 batchUpdatePityCounters 复用
+     */
+    private void doBatchUpdatePityCounters(Connection conn, UUID playerUuid, String machineId, List<PityRule> rules,
+                                           java.util.Map<String, Integer> counters, PityRule lastTriggeredRule, String lastRewardId) throws SQLException {
+        // 收集所有规则哈希
+        List<String> ruleHashes = rules.stream()
+            .map(PityRule::getRuleHash)
+            .toList();
+
+        // 批量查询当前的 last_pity_reward - 用于 H2 保持原值
+        Map<String, String> currentRewards = new HashMap<>();
+        boolean isMySQL = plugin.getDatabaseManager().isMySQL();
+
+        if (!isMySQL && !ruleHashes.isEmpty()) {
+            String placeholders = String.join(",", Collections.nCopies(ruleHashes.size(), "?"));
+            String selectSql = "SELECT rule_hash, last_pity_reward FROM gacha_pity " +
+                              "WHERE player_uuid = ? AND machine_id = ? AND rule_hash IN (" + placeholders + ")";
+            try (PreparedStatement ps = conn.prepareStatement(selectSql)) {
+                ps.setString(1, playerUuid.toString());
+                ps.setString(2, machineId);
+                for (int i = 0; i < ruleHashes.size(); i++) {
+                    ps.setString(3 + i, ruleHashes.get(i));
+                }
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        currentRewards.put(rs.getString("rule_hash"), rs.getString("last_pity_reward"));
+                    }
+                }
+            }
+        }
+
+        // 批量更新 - 使用批处理
+        long currentTime = System.currentTimeMillis();
+        String triggeredHash = lastTriggeredRule != null ? lastTriggeredRule.getRuleHash() : null;
+
+        if (isMySQL) {
+            // MySQL: 使用批处理
+            String triggeredSql = "INSERT INTO gacha_pity (player_uuid, machine_id, rule_hash, draw_count, last_pity_reward, last_draw_time) " +
+                                  "VALUES (?, ?, ?, ?, ?, ?) " +
+                                  "ON DUPLICATE KEY UPDATE draw_count = ?, last_pity_reward = ?, last_draw_time = ?";
+            String untriggeredSql = "INSERT INTO gacha_pity (player_uuid, machine_id, rule_hash, draw_count, last_pity_reward, last_draw_time) " +
+                                    "VALUES (?, ?, ?, ?, ?, ?) " +
+                                    "ON DUPLICATE KEY UPDATE draw_count = ?, last_draw_time = ?";
+
+            try (PreparedStatement triggeredPs = conn.prepareStatement(triggeredSql);
+                 PreparedStatement untriggeredPs = conn.prepareStatement(untriggeredSql)) {
+
+                for (PityRule rule : rules) {
+                    String ruleHash = rule.getRuleHash();
+                    int finalCount = counters.getOrDefault(ruleHash, 0);
+                    boolean isTriggered = ruleHash.equals(triggeredHash);
+
+                    if (isTriggered) {
+                        triggeredPs.setString(1, playerUuid.toString());
+                        triggeredPs.setString(2, machineId);
+                        triggeredPs.setString(3, ruleHash);
+                        triggeredPs.setInt(4, finalCount);
+                        triggeredPs.setString(5, lastRewardId);
+                        triggeredPs.setLong(6, currentTime);
+                        triggeredPs.setInt(7, finalCount);
+                        triggeredPs.setString(8, lastRewardId);
+                        triggeredPs.setLong(9, currentTime);
+                        triggeredPs.addBatch();
+                    } else {
+                        untriggeredPs.setString(1, playerUuid.toString());
+                        untriggeredPs.setString(2, machineId);
+                        untriggeredPs.setString(3, ruleHash);
+                        untriggeredPs.setInt(4, finalCount);
+                        untriggeredPs.setString(5, null);
+                        untriggeredPs.setLong(6, currentTime);
+                        untriggeredPs.setInt(7, finalCount);
+                        untriggeredPs.setLong(8, currentTime);
+                        untriggeredPs.addBatch();
+                    }
                 }
 
-                // 根据数据库类型选择SQL语法
-                boolean isMySQL = plugin.getDatabaseManager().isMySQL();
-                String sql;
-                if (isMySQL) {
-                    sql = "INSERT INTO gacha_pity (player_uuid, machine_id, rule_hash, draw_count, last_pity_reward, last_draw_time) " +
-                          "VALUES (?, ?, ?, ?, ?, ?) " +
-                          "ON DUPLICATE KEY UPDATE draw_count = ?, last_pity_reward = ?, last_draw_time = ?";
-                } else {
-                    sql = "MERGE INTO gacha_pity (player_uuid, machine_id, rule_hash, draw_count, last_pity_reward, last_draw_time) " +
-                          "VALUES (?, ?, ?, ?, ?, ?)";
-                }
-                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                triggeredPs.executeBatch();
+                untriggeredPs.executeBatch();
+            }
+        } else {
+            // H2: 使用批处理
+            String sql = "MERGE INTO gacha_pity KEY(player_uuid, machine_id, rule_hash) " +
+                         "VALUES (?, ?, ?, ?, ?, ?)";
+
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                for (PityRule rule : rules) {
+                    String ruleHash = rule.getRuleHash();
+                    int finalCount = counters.getOrDefault(ruleHash, 0);
+                    boolean isTriggered = ruleHash.equals(triggeredHash);
+                    String lastReward = isTriggered ? lastRewardId : currentRewards.get(ruleHash);
+
                     ps.setString(1, playerUuid.toString());
                     ps.setString(2, machineId);
                     ps.setString(3, ruleHash);
-                    ps.setInt(4, newCount);
-                    ps.setString(5, satisfiedHashes.contains(ruleHash) ? rewardId : null);
-                    ps.setLong(6, System.currentTimeMillis());
-                    if (isMySQL) {
-                        ps.setInt(7, newCount);
-                        ps.setString(8, satisfiedHashes.contains(ruleHash) ? rewardId : null);
-                        ps.setLong(9, System.currentTimeMillis());
-                    }
-                    ps.executeUpdate();
+                    ps.setInt(4, finalCount);
+                    ps.setString(5, lastReward);
+                    ps.setLong(6, currentTime);
+                    ps.addBatch();
                 }
+                ps.executeBatch();
             }
-            return null;
-        });
+        }
     }
 
     /**
@@ -324,59 +417,9 @@ public class GachaManager {
     public void batchUpdatePityCounters(UUID playerUuid, String machineId, List<PityRule> rules,
                                         Map<String, Integer> counters, PityRule lastTriggeredRule, String lastRewardId) {
         plugin.getDatabaseQueue().submit("batchUpdatePityCounters", conn -> {
-            for (PityRule rule : rules) {
-                String ruleHash = rule.getRuleHash();
-                int finalCount = counters.getOrDefault(ruleHash, 0);
-
-                // 只有最后触发的规则才记录rewardId
-                String rewardIdToRecord = (lastTriggeredRule != null && ruleHash.equals(lastTriggeredRule.getRuleHash()))
-                    ? lastRewardId : null;
-
-                // 根据数据库类型选择SQL语法
-                boolean isMySQL = plugin.getDatabaseManager().isMySQL();
-                String sql;
-                if (isMySQL) {
-                    sql = "INSERT INTO gacha_pity (player_uuid, machine_id, rule_hash, draw_count, last_pity_reward, last_draw_time) " +
-                          "VALUES (?, ?, ?, ?, ?, ?) " +
-                          "ON DUPLICATE KEY UPDATE draw_count = ?, last_pity_reward = ?, last_draw_time = ?";
-                } else {
-                    sql = "MERGE INTO gacha_pity (player_uuid, machine_id, rule_hash, draw_count, last_pity_reward, last_draw_time) " +
-                          "VALUES (?, ?, ?, ?, ?, ?)";
-                }
-
-                try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                    ps.setString(1, playerUuid.toString());
-                    ps.setString(2, machineId);
-                    ps.setString(3, ruleHash);
-                    ps.setInt(4, finalCount);
-                    ps.setString(5, rewardIdToRecord);
-                    ps.setLong(6, System.currentTimeMillis());
-                    if (isMySQL) {
-                        ps.setInt(7, finalCount);
-                        ps.setString(8, rewardIdToRecord);
-                        ps.setLong(9, System.currentTimeMillis());
-                    }
-
-                    ps.executeUpdate();
-                }
-            }
+            doBatchUpdatePityCounters(conn, playerUuid, machineId, rules, counters, lastTriggeredRule, lastRewardId);
             return null;
         });
-    }
-
-    private int getCurrentCount(Connection conn, UUID playerUuid, String machineId, String ruleHash) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "SELECT draw_count FROM gacha_pity WHERE player_uuid = ? AND machine_id = ? AND rule_hash = ?")) {
-            ps.setString(1, playerUuid.toString());
-            ps.setString(2, machineId);
-            ps.setString(3, ruleHash);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt("draw_count");
-                }
-                return 0;
-            }
-        }
     }
 
     /**
@@ -388,17 +431,18 @@ public class GachaManager {
             try (PreparedStatement ps = conn.prepareStatement(
                     "SELECT * FROM gacha_records WHERE player_uuid = ? ORDER BY timestamp DESC LIMIT 20")) {
                 ps.setString(1, playerUuid.toString());
-                ResultSet rs = ps.executeQuery();
-                while (rs.next()) {
-                    records.add(new GachaRecord(
-                        rs.getString("player_name"),
-                        rs.getString("machine_id"),
-                        rs.getString("reward_id"),
-                        rs.getString("item_key"),
-                        rs.getInt("amount"),
-                        rs.getDouble("cost"),
-                        rs.getLong("timestamp")
-                    ));
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        records.add(new GachaRecord(
+                            rs.getString("player_name"),
+                            rs.getString("machine_id"),
+                            rs.getString("reward_id"),
+                            rs.getString("item_key"),
+                            rs.getInt("amount"),
+                            rs.getDouble("cost"),
+                            rs.getLong("timestamp")
+                        ));
+                    }
                 }
             }
             return records;

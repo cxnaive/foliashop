@@ -3,13 +3,13 @@ package dev.user.shop.gui;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class GUIManager {
 
-    private static final Map<UUID, AbstractGUI> openGUIs = new HashMap<>();
+    private static final Map<UUID, AbstractGUI> openGUIs = new ConcurrentHashMap<>();
 
     public static void registerGUI(UUID playerUuid, AbstractGUI gui) {
         openGUIs.put(playerUuid, gui);

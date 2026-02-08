@@ -137,10 +137,11 @@ public class GachaBlockManager {
                 ps.executeUpdate();
 
                 // 获取生成的ID
-                ResultSet rs = ps.getGeneratedKeys();
                 int bindingId = -1;
-                if (rs.next()) {
-                    bindingId = rs.getInt(1);
+                try (ResultSet rs = ps.getGeneratedKeys()) {
+                    if (rs.next()) {
+                        bindingId = rs.getInt(1);
+                    }
                 }
 
                 // 更新内存

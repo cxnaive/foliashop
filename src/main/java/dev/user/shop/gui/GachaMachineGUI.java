@@ -87,6 +87,11 @@ public class GachaMachineGUI extends AbstractGUI {
         executeGachaWithPayment(player, cost, () -> {
             // 获取保底计数并抽奖
             plugin.getGachaManager().getPityCounters(player.getUniqueId(), machine.getId(), counters -> {
+                // 检查玩家是否仍然在线
+                if (!player.isOnline()) {
+                    return;
+                }
+
                 // 使用保底抽奖
                 GachaMachine.PityResult result = machine.rollWithPity(counters);
                 GachaReward reward = result.reward();
