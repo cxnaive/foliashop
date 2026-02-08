@@ -91,7 +91,9 @@ public class GachaHistoryGUI extends AbstractGUI {
         }
 
         String timeStr = DATE_FORMAT.format(Instant.ofEpochMilli(record.getTimestamp()));
-        String machineName = getMachineDisplayName(record.getMachineId());
+        String machineNameRaw = getMachineDisplayName(record.getMachineId());
+        // 解析 MiniMessage 格式（如 <gold>高级扭蛋机）
+        String machineName = plugin.getShopConfig().convertMiniMessage(machineNameRaw);
 
         // 保持物品原始名称，只在lore中添加信息
         ItemUtil.setLore(item, List.of(
