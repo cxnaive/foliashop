@@ -5,6 +5,9 @@ import net.kyori.adventure.text.minimessage.MiniMessage;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class GachaReward {
 
     private final String id;
@@ -14,14 +17,20 @@ public class GachaReward {
     private final String displayName;
     private final boolean broadcast;
     private ItemStack displayItem;
+    private Map<String, String> components; // NBT 组件配置
 
     public GachaReward(String id, String itemKey, int amount, double probability, String displayName, boolean broadcast) {
+        this(id, itemKey, amount, probability, displayName, broadcast, null);
+    }
+
+    public GachaReward(String id, String itemKey, int amount, double probability, String displayName, boolean broadcast, Map<String, String> components) {
         this.id = id;
         this.itemKey = itemKey;
         this.amount = amount;
         this.probability = probability;
         this.displayName = displayName;
         this.broadcast = broadcast;
+        this.components = components != null ? components : new HashMap<>();
     }
 
     // Getters
@@ -34,6 +43,10 @@ public class GachaReward {
 
     public ItemStack getDisplayItem() { return displayItem; }
     public void setDisplayItem(ItemStack displayItem) { this.displayItem = displayItem; }
+
+    public Map<String, String> getComponents() { return components; }
+    public void setComponents(Map<String, String> components) { this.components = components != null ? components : new HashMap<>(); }
+    public boolean hasComponents() { return components != null && !components.isEmpty(); }
 
     /**
      * 获取稀有度等级（基于概率）

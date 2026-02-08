@@ -8,6 +8,8 @@ import org.bukkit.inventory.ItemStack;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static dev.user.shop.util.ItemUtil.applyComponents;
+
 public class GachaMachine {
 
     private final String id;
@@ -27,18 +29,27 @@ public class GachaMachine {
     // 展示实体覆盖配置（可选，为null时使用默认配置）
     private final DisplayEntityConfig displayConfig;
 
+    // ICON NBT 组件配置
+    private Map<String, String> iconComponents;
+
     private double totalProbability;
     private List<org.bukkit.inventory.ItemStack> cachedAnimationItems;
 
     public GachaMachine(String id, String name, List<String> description, String icon, double cost,
                         int animationDuration, int animationDurationTen, boolean broadcastRare, double broadcastThreshold, int slot,
                         List<PityRule> pityRules, boolean enabled) {
-        this(id, name, description, icon, cost, animationDuration, animationDurationTen, broadcastRare, broadcastThreshold, slot, pityRules, enabled, null);
+        this(id, name, description, icon, cost, animationDuration, animationDurationTen, broadcastRare, broadcastThreshold, slot, pityRules, enabled, null, null);
     }
 
     public GachaMachine(String id, String name, List<String> description, String icon, double cost,
                         int animationDuration, int animationDurationTen, boolean broadcastRare, double broadcastThreshold, int slot,
                         List<PityRule> pityRules, boolean enabled, DisplayEntityConfig displayConfig) {
+        this(id, name, description, icon, cost, animationDuration, animationDurationTen, broadcastRare, broadcastThreshold, slot, pityRules, enabled, displayConfig, null);
+    }
+
+    public GachaMachine(String id, String name, List<String> description, String icon, double cost,
+                        int animationDuration, int animationDurationTen, boolean broadcastRare, double broadcastThreshold, int slot,
+                        List<PityRule> pityRules, boolean enabled, DisplayEntityConfig displayConfig, Map<String, String> iconComponents) {
         this.id = id;
         this.name = name;
         this.description = description != null ? description : new ArrayList<>();
@@ -55,6 +66,7 @@ public class GachaMachine {
         this.rewards = new ArrayList<>();
         this.enabled = enabled;
         this.displayConfig = displayConfig;
+        this.iconComponents = iconComponents != null ? iconComponents : new HashMap<>();
     }
 
     public void addReward(GachaReward reward) {
@@ -231,8 +243,23 @@ public class GachaMachine {
         if (item == null) {
             item = new ItemStack(Material.CHEST);
         }
+        // 调试信息
+        System.out.println("[GachaMachine] Creating icon for " + id + ", icon=" + icon);
+        System.out.println("[GachaMachine] iconComponents=" + iconComponents);
+
+        // 应用 ICON NBT 组件
+        if (iconComponents != null && !iconComponents.isEmpty()) {
+            System.out.println("[GachaMachine] Applying " + iconComponents.size() + " components");
+            item = applyComponents(item, iconComponents);
+        } else {
+            System.out.println("[GachaMachine] No components to apply");
+        }
         return item;
     }
+
+    public Map<String, String> getIconComponents() { return iconComponents; }
+    public void setIconComponents(Map<String, String> iconComponents) { this.iconComponents = iconComponents != null ? iconComponents : new HashMap<>(); }
+    public boolean hasIconComponents() { return iconComponents != null && !iconComponents.isEmpty(); }
 
     /**
      * 获取展示实体配置（可能为null，表示使用默认配置）

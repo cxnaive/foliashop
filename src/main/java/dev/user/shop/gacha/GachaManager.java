@@ -5,6 +5,8 @@ import dev.user.shop.util.ItemUtil;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.Map;
+
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -74,14 +76,26 @@ public class GachaManager {
                 machineSection.getConfigurationSection("display-entity")
             );
 
+            // 加载 ICON NBT 组件配置
+            Map<String, String> iconComponents = ItemUtil.parseComponents(
+                machineSection.get("icon-components")
+            );
+            System.out.println("[GachaManager] Loaded icon-components for " + machineId + ": " + iconComponents);
+
             GachaMachine machine = new GachaMachine(
                 machineId, name, description, icon, cost,
-                animationDuration, animationDurationTen, broadcastRare, broadcastThreshold, slot, pityRules, enabled, displayConfig
+                animationDuration, animationDurationTen, broadcastRare, broadcastThreshold, slot, pityRules, enabled, displayConfig, iconComponents
             );
 
             // 加载奖品
+            // 先尝试作为 ConfigurationSection 读取（支持 comments 和复杂结构）
+            ConfigurationSection rewardsSection = machineSection.getConfigurationSection("rewards");
             List<Map<?, ?>> rewardsList = machineSection.getMapList("rewards");
-            for (Map<?, ?> rewardMap : rewardsList) {
+            System.out.println("[GachaManager] Loading rewards for " + machineId + ", count: " + rewardsList.size());
+
+            for (int i = 0; i < rewardsList.size(); i++) {
+                Map<?, ?> rewardMap = rewardsList.get(i);
+                System.out.println("[GachaManager] Processing reward " + i + ": " + rewardMap.get("id"));
                 String id = String.valueOf(rewardMap.get("id"));
                 String itemKey = String.valueOf(rewardMap.get("item"));
                 int amount = rewardMap.get("amount") instanceof Number ? ((Number) rewardMap.get("amount")).intValue() : 1;
@@ -93,11 +107,21 @@ public class GachaManager {
                     displayName = itemKey;
                 }
 
-                GachaReward reward = new GachaReward(id, itemKey, amount, probability, displayName, broadcast);
+                // 加载奖品 NBT 组件配置
+                // 直接从 rewardMap 获取 components（getMapList 已经把 YAML 列表项转为 Map）
+                Object componentsObj = rewardMap.get("components");
+                System.out.println("[GachaManager] Reward " + id + " components raw: " + componentsObj);
+                Map<String, String> rewardComponents = ItemUtil.parseComponents(componentsObj);
+                System.out.println("[GachaManager] Reward " + id + " parsed components: " + rewardComponents);
 
-                // 创建显示物品
+                GachaReward reward = new GachaReward(id, itemKey, amount, probability, displayName, broadcast, rewardComponents);
+
+                // 创建显示物品并应用 NBT 组件
                 ItemStack item = ItemUtil.createItemFromKey(plugin, itemKey);
                 if (item != null) {
+                    if (!rewardComponents.isEmpty()) {
+                        item = ItemUtil.applyComponents(item, rewardComponents);
+                    }
                     reward.setDisplayItem(item);
                 }
 

@@ -102,11 +102,11 @@ public class GachaTenResultGUI extends AbstractGUI {
         lore.add("§7稀有度: " + reward.getRarityColor() + reward.getRarityPercent());
         if (claimed) {
             lore.add("§a✓ 已领取");
-            ItemUtil.setDisplayName(display, "§8§m" + reward.getPlainDisplayName());
+            ItemUtil.setDisplayName(display, "§8§m" + ItemUtil.getDisplayName(reward.getDisplayItem()));
         } else {
             lore.add("§e点击领取");
         }
-        ItemUtil.setLore(display, lore);
+        ItemUtil.addLore(display, lore);
 
         return display;
     }
@@ -189,10 +189,11 @@ public class GachaTenResultGUI extends AbstractGUI {
 
         // 广播稀有奖品
         if (machine.shouldBroadcast(reward)) {
+            String itemName = ItemUtil.getDisplayName(rewardItem);
             String broadcast = plugin.getShopConfig().getMessage("gacha-broadcast",
                 java.util.Map.of("player", player.getName(),
                                 "machine", machine.getName(),
-                                "item", reward.getPlainDisplayName()));
+                                "item", itemName));
             // 处理颜色代码（§ 格式）
             Component broadcastComponent = ItemUtil.deserializeLegacyMessage(broadcast);
             plugin.getServer().broadcast(broadcastComponent);

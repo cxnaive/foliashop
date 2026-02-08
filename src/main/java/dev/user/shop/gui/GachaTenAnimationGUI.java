@@ -180,7 +180,7 @@ public class GachaTenAnimationGUI extends AbstractGUI {
             List<String> lore = new ArrayList<>();
             lore.add("§7稀有度: " + reward.getRarityColor() + reward.getRarityPercent());
             lore.add("§e已揭示!");
-            ItemUtil.setLore(display, lore);
+            ItemUtil.addLore(display, lore);
 
             inventory.setItem(DISPLAY_SLOTS[index], display);
         }
@@ -251,7 +251,7 @@ public class GachaTenAnimationGUI extends AbstractGUI {
             List<String> lore = new ArrayList<>();
             lore.add("");
             lore.add("§7稀有度: " + reward.getRarityColor() + reward.getRarityPercent());
-            ItemUtil.setLore(display, lore);
+            ItemUtil.addLore(display, lore);
 
             inventory.setItem(DISPLAY_SLOTS[index], display);
         }

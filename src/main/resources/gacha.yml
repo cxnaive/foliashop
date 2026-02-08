@@ -53,6 +53,19 @@ display-entity:
     color: null
 
 # 扭蛋机列表
+# 配置说明:
+# - icon: 扭蛋机图标物品ID
+# - icon-components: 图标附加NBT组件（可选），格式: "path+value"
+#
+# NBT组件示例:
+#   icon-components:
+#     # 添加附魔光泽（无实际附魔效果）
+#     - "minecraft:enchantment_glint_override+true"
+#     # 设置自定义名称
+#     - "minecraft:custom_name+\"§6高级扭蛋机\""
+#     # 设置自定义模型数据
+#     - "minecraft:custom_model_data+1001"
+#
 machines:
   # ========== 普通扭蛋机 ==========
   normal:
@@ -95,6 +108,19 @@ machines:
     #     speed: 1.5
 
     # 奖品列表
+    # 奖品NBT组件配置（可选），格式: "path+value"
+    #
+    # NBT组件示例:
+    #   components:
+    #     # 添加附魔
+    #     - "minecraft:enchantments+{'minecraft:sharpness':5}"
+    #     # 设置自定义名称
+    #     - "minecraft:custom_name+\"§6传说之剑\""
+    #     # 设置Lore
+    #     - "minecraft:lore+[\"§7稀有奖品\",\"§7值得收藏\"]"
+    #     # 设置自定义数据
+    #     - "minecraft:custom_data+{gacha_reward:true,rarity:'epic'}"
+    #
     rewards:
       # 普通奖品
       - id: "common_cobblestone"
@@ -153,6 +179,16 @@ machines:
     broadcast-rare: true
     broadcast-threshold: 0.10
 
+    # 扭蛋机图标带NBT示例：发光效果
+    icon: "minecraft:diamond_sword"
+    icon-components:
+      # 添加附魔光泽（让图标看起来发光）
+      - "minecraft:enchantment_glint_override+true"
+      # 设置自定义名称
+      - "minecraft:custom_name+\"§6§l高级扭蛋机\""
+      # 设置Lore
+      - "minecraft:lore+[\"§7消耗500金币抽奖\",\"§7更高概率获得稀有物品\"]"
+
     # 这个扭蛋机有更大的展示实体
     display-entity:
       scale: 1.2
@@ -192,3 +228,22 @@ machines:
         probability: 0.02
         display-name: "<blue>下界合金锭"
         broadcast: true
+
+      # 带NBT的示例奖品：附魔钻石剑
+      - id: "p_legendary_sword"
+        item: "minecraft:diamond_sword"
+        amount: 1
+        probability: 0.01
+        display-name: "<gold>§l传说之剑"
+        broadcast: true
+        components:
+          # 添加多重附魔
+          - "minecraft:enchantments+{'minecraft:sharpness':5,'minecraft:unbreaking':3,'minecraft:mending':1,'minecraft:fire_aspect':2,'minecraft:looting':3}"
+          # 设置自定义名称（带颜色）
+          - "minecraft:custom_name+\"§6§l传说之剑§r\""
+          # 设置Lore
+          - "minecraft:lore+[\"§7高级扭蛋机限定\",\"§7蕴含着强大的魔力\",\"§c§l传说品质\"]"
+          # 设置不可破坏
+          - "minecraft:unbreakable+{}"
+          # 设置自定义数据
+          - "minecraft:custom_data+{gacha_reward:true,rarity:'legendary',machine:'premium',version:1b}"

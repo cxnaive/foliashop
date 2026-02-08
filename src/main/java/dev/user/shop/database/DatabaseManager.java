@@ -197,6 +197,9 @@ public class DatabaseManager {
             // 数据库迁移：添加缺失的 daily_limit 列
             migrateAddDailyLimitColumn(conn);
 
+            // 数据库迁移：添加缺失的 components 列
+            migrateAddComponentsColumn(conn);
+
             // 交易记录表
             String idColumn = isMySQL ? "id BIGINT AUTO_INCREMENT PRIMARY KEY" : "id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY";
             String transactionsTable = "CREATE TABLE IF NOT EXISTS transactions (" +
@@ -325,6 +328,33 @@ public class DatabaseManager {
             }
         } catch (SQLException e) {
             plugin.getLogger().warning("[数据库迁移] 添加 daily_limit 列失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 数据库迁移：添加 components 列到 shop_items 表
+     */
+    private void migrateAddComponentsColumn(Connection conn) {
+        try {
+            // 检查列是否存在
+            DatabaseMetaData metaData = conn.getMetaData();
+            boolean columnExists = false;
+            try (ResultSet columns = metaData.getColumns(null, null, "SHOP_ITEMS", "COMPONENTS")) {
+                if (columns.next()) {
+                    columnExists = true;
+                }
+            }
+
+            // 如果列不存在，添加它
+            if (!columnExists) {
+                plugin.getLogger().info("[数据库迁移] 正在添加 components 列到 shop_items 表...");
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute("ALTER TABLE shop_items ADD COLUMN components TEXT");
+                    plugin.getLogger().info("[数据库迁移] components 列添加成功");
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().warning("[数据库迁移] 添加 components 列失败: " + e.getMessage());
         }
     }
 

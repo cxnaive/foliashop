@@ -115,7 +115,7 @@ public class ShopAdminGUI extends AbstractGUI {
         lore.add("");
         lore.add("§e点击管理库存");
 
-        ItemUtil.setLore(display, lore);
+        ItemUtil.addLore(display, lore);
         return display;
     }
 

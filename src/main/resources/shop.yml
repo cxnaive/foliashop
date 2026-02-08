@@ -82,6 +82,24 @@ categories:
 # - stock: 库存数量，-1表示无限库存
 # - category: 所属分类ID
 # - slot: 在分类GUI中的位置
+# - daily-limit: 每日购买限额，0表示无限制
+# - components: 附加NBT组件（可选），格式: "path+value"
+#
+# NBT组件示例:
+#   components:
+#     # 添加附魔
+#     - "minecraft:enchantments+{'minecraft:sharpness':5,'minecraft:unbreaking':3}"
+#     # 设置自定义名称
+#     - "minecraft:custom_name+\"§6传说之剑\""
+#     # 设置Lore
+#     - "minecraft:lore+[\"§7第一行描述\",\"§7第二行描述\"]"
+#     # 设置自定义数据（用于插件识别）
+#     - "minecraft:custom_data+{shop_item:true,rarity:'legendary'}"
+#     # 设置耐久度
+#     - "minecraft:damage+100"
+#     # 设置自定义模型数据
+#     - "minecraft:custom_model_data+1001"
+#
 items:
   # 建筑材料
   stone:
@@ -121,13 +139,35 @@ items:
     stock: -1
     category: "tools"
     slot: 10
+
+  # 带NBT的示例：附魔铁剑
+  enchanted_iron_sword:
+    item: "minecraft:iron_sword"
+    buy-price: 500.0
+    sell-price: 0
+    stock: -1
+    category: "tools"
+    slot: 11
+    daily-limit: 1
+    components:
+      # 添加锋利5和耐久3附魔
+      - "minecraft:enchantments+{'minecraft:sharpness':5,'minecraft:unbreaking':3}"
+      # 设置自定义名称
+      - "minecraft:custom_name+\"§6§l传说铁剑\""
+      # 设置Lore
+      - "minecraft:lore+[\"§7商店限定版\",\"§7每日限购1把\"]"
+      # 设置不可破坏
+      - "minecraft:unbreakable+{}"
+      # 设置自定义数据
+      - "minecraft:custom_data+{shop_special:true,version:1b}"
+
   iron_sword:
     item: "minecraft:iron_sword"
     buy-price: 100.0
     sell-price: 50.0
     stock: -1
     category: "tools"
-    slot: 11
+    slot: 12
 
   # 食物补给
   cooked_beef:

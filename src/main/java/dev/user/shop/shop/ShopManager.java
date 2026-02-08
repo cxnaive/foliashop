@@ -1,5 +1,7 @@
 package dev.user.shop.shop;
 
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import dev.user.shop.FoliaShopPlugin;
 import dev.user.shop.util.ItemUtil;
 import org.bukkit.configuration.ConfigurationSection;
@@ -176,6 +178,12 @@ public class ShopManager {
             int slot = itemSection.getInt("slot", 0);
             int dailyLimit = itemSection.getInt("daily-limit", 0);
 
+            // 加载 NBT 组件配置
+            Object componentsObj = itemSection.get("components");
+            System.out.println("[ShopManager] Item " + id + " components raw: " + componentsObj);
+            Map<String, String> components = ItemUtil.parseComponents(componentsObj);
+            System.out.println("[ShopManager] Item " + id + " parsed components: " + components);
+
             ShopItem existingItem = items.get(id);
             if (existingItem != null) {
                 // 已有商品：更新配置（保留数据库中的库存）
@@ -184,10 +192,15 @@ public class ShopManager {
                 existingItem.setCategory(category);
                 existingItem.setSlot(slot);
                 existingItem.setDailyLimit(dailyLimit);
+                existingItem.setComponents(components);
                 // 库存保留数据库值，不覆盖
                 // 更新显示物品（可能配置改了itemKey）
                 ItemStack item = ItemUtil.createItemFromKey(plugin, itemKey);
                 if (item != null) {
+                    // 应用 NBT 组件
+                    if (!components.isEmpty()) {
+                        item = ItemUtil.applyComponents(item, components);
+                    }
                     existingItem.setDisplayItem(item);
                 }
                 // 同步回数据库
@@ -195,9 +208,13 @@ public class ShopManager {
                 updatedCount++;
             } else {
                 // 新商品：创建并保存
-                ShopItem shopItem = new ShopItem(id, itemKey, buyPrice, sellPrice, stock, category, slot, dailyLimit);
+                ShopItem shopItem = new ShopItem(id, itemKey, buyPrice, sellPrice, stock, category, slot, dailyLimit, components);
                 ItemStack item = ItemUtil.createItemFromKey(plugin, itemKey);
                 if (item != null) {
+                    // 应用 NBT 组件
+                    if (!components.isEmpty()) {
+                        item = ItemUtil.applyComponents(item, components);
+                    }
                     shopItem.setDisplayItem(item);
                 }
                 items.put(id, shopItem);
@@ -227,7 +244,8 @@ public class ShopManager {
                         rs.getInt("stock"),
                         rs.getString("category"),
                         rs.getInt("slot"),
-                        rs.getInt("daily_limit")
+                        rs.getInt("daily_limit"),
+                        rs.getString("components")
                     });
                 }
             }
@@ -244,10 +262,17 @@ public class ShopManager {
                 String category = (String) data[5];
                 int slot = (Integer) data[6];
                 int dailyLimit = (Integer) data[7];
+                @SuppressWarnings("unchecked")
+                Map<String, String> components = data.length > 8 && data[8] != null ?
+                    parseComponentsFromJson((String) data[8]) : new HashMap<>();
 
-                ShopItem shopItem = new ShopItem(id, itemKey, buyPrice, sellPrice, stock, category, slot, dailyLimit);
+                ShopItem shopItem = new ShopItem(id, itemKey, buyPrice, sellPrice, stock, category, slot, dailyLimit, components);
                 ItemStack item = ItemUtil.createItemFromKey(plugin, itemKey);
                 if (item != null) {
+                    // 应用 NBT 组件
+                    if (!components.isEmpty()) {
+                        item = ItemUtil.applyComponents(item, components);
+                    }
                     shopItem.setDisplayItem(item);
                 }
                 items.put(id, shopItem);
@@ -312,16 +337,19 @@ public class ShopManager {
         plugin.getDatabaseQueue().submit("saveShopItem", conn -> {
             boolean isMySQL = plugin.getDatabaseManager().isMySQL();
 
+            // 将 components 转换为 JSON 字符串
+            String componentsJson = item.hasComponents() ? componentsToJson(item.getComponents()) : null;
+
             String sql;
             if (isMySQL) {
                 // MySQL/MariaDB 语法
-                sql = "INSERT INTO shop_items (id, item_key, buy_price, sell_price, stock, category, slot, enabled, daily_limit) " +
-                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) " +
-                      "ON DUPLICATE KEY UPDATE item_key=?, buy_price=?, sell_price=?, stock=?, category=?, slot=?, enabled=?, daily_limit=?";
+                sql = "INSERT INTO shop_items (id, item_key, buy_price, sell_price, stock, category, slot, enabled, daily_limit, components) " +
+                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
+                      "ON DUPLICATE KEY UPDATE item_key=?, buy_price=?, sell_price=?, stock=?, category=?, slot=?, enabled=?, daily_limit=?, components=?";
             } else {
                 // H2 语法
-                sql = "MERGE INTO shop_items (id, item_key, buy_price, sell_price, stock, category, slot, enabled, daily_limit) " +
-                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                sql = "MERGE INTO shop_items (id, item_key, buy_price, sell_price, stock, category, slot, enabled, daily_limit, components) " +
+                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             }
 
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -334,16 +362,18 @@ public class ShopManager {
                 ps.setInt(7, item.getSlot());
                 ps.setBoolean(8, item.isEnabled());
                 ps.setInt(9, item.getDailyLimit());
+                ps.setString(10, componentsJson);
 
                 if (isMySQL) {
-                    ps.setString(10, item.getItemKey());
-                    ps.setDouble(11, item.getBuyPrice());
-                    ps.setDouble(12, item.getSellPrice());
-                    ps.setInt(13, item.getStock());
-                    ps.setString(14, item.getCategory());
-                    ps.setInt(15, item.getSlot());
-                    ps.setBoolean(16, item.isEnabled());
-                    ps.setInt(17, item.getDailyLimit());
+                    ps.setString(11, item.getItemKey());
+                    ps.setDouble(12, item.getBuyPrice());
+                    ps.setDouble(13, item.getSellPrice());
+                    ps.setInt(14, item.getStock());
+                    ps.setString(15, item.getCategory());
+                    ps.setInt(16, item.getSlot());
+                    ps.setBoolean(17, item.isEnabled());
+                    ps.setInt(18, item.getDailyLimit());
+                    ps.setString(19, componentsJson);
                 }
 
                 ps.executeUpdate();
@@ -945,6 +975,34 @@ public class ShopManager {
             this.slot = slot;
             this.dailyLimit = dailyLimit;
             this.enabled = enabled;
+        }
+    }
+
+    // ==================== NBT Components 辅助方法 ====================
+
+    private static final Gson GSON = new Gson();
+
+    /**
+     * 将 components Map 转换为 JSON 字符串
+     */
+    private String componentsToJson(Map<String, String> components) {
+        if (components == null || components.isEmpty()) {
+            return null;
+        }
+        return GSON.toJson(components);
+    }
+
+    /**
+     * 从 JSON 字符串解析 components Map
+     */
+    private Map<String, String> parseComponentsFromJson(String json) {
+        if (json == null || json.isEmpty()) {
+            return new HashMap<>();
+        }
+        try {
+            return GSON.fromJson(json, new TypeToken<Map<String, String>>() {}.getType());
+        } catch (Exception e) {
+            return new HashMap<>();
         }
     }
 }

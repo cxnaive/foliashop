@@ -52,7 +52,7 @@ public class GachaPreviewGUI extends AbstractGUI {
             lore.add("");
             lore.add("§7数量: §e" + reward.getAmount());
 
-            ItemUtil.setLore(item, lore);
+            ItemUtil.addLore(item, lore);
 
             // 跳过边框位置
             while (slot % 9 == 0 || slot % 9 == 8 || slot < 9 || slot > 44) {

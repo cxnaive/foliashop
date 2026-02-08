@@ -12,8 +12,11 @@ import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
+import de.tr7zw.nbtapi.iface.ReadWriteNBT;
+
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class ItemUtil {
@@ -72,32 +75,64 @@ public class ItemUtil {
 
     /**
      * 获取物品的显示名称
+     * 优先级：1. 自定义名称（如果有） 2. CE物品的translationKey 3. 原版翻译键
      */
     public static String getDisplayName(ItemStack item) {
         if (item == null || item.getType() == Material.AIR) {
-            return "空气";
+            return "<lang:block.minecraft.air>空气</lang>";
         }
 
         ItemMeta meta = item.getItemMeta();
-        if (meta != null && meta.hasDisplayName()) {
-            Component displayName = meta.displayName();
-            if (displayName != null) {
-                return LegacyComponentSerializer.legacySection().serialize(displayName);
+        // 优先检查是否有ItemName名称（CE物品通常有）
+        if (meta != null && meta.hasItemName()) {
+            Component itemName = meta.itemName();
+            if (itemName != null) {
+                return LegacyComponentSerializer.legacySection().serialize(itemName);
             }
         }
 
-        // 返回格式化的物品ID
-        String matName = item.getType().name().toLowerCase().replace("_", " ");
-        String[] words = matName.split(" ");
-        StringBuilder result = new StringBuilder();
-        for (String word : words) {
-            if (!word.isEmpty()) {
-                result.append(Character.toUpperCase(word.charAt(0)))
-                      .append(word.substring(1))
-                      .append(" ");
-            }
+        // 其次检查是否是CE物品，使用CE的translationKey
+        String ceTranslationKey = getCEItemTranslationKey(item);
+        if (ceTranslationKey != null) {
+            return "<lang:" + ceTranslationKey + ">";
         }
-        return result.toString().trim();
+
+        // 最后返回原版 <lang> 标签格式
+        String matName = item.getType().name().toLowerCase();
+        String translationKey;
+
+        if (item.getType().isBlock()) {
+            translationKey = "block.minecraft." + matName;
+        } else {
+            translationKey = "item.minecraft." + matName;
+        }
+
+        return "<lang:" + translationKey + ">";
+    }
+
+    /**
+     * 获取CE物品的翻译键
+     * @param item 物品
+     * @return CE物品的translationKey，如果不是CE物品则返回null
+     */
+    private static String getCEItemTranslationKey(ItemStack item) {
+        if (item == null) {
+            return null;
+        }
+        try {
+            // 获取CE物品的自定义ID
+            Key customId = CraftEngineItems.getCustomItemId(item);
+            if (customId != null) {
+                // 将CE物品ID转换为翻译键格式
+                // 例如: myplugin:custom_item -> item.myplugin.custom_item
+                String namespace = customId.namespace();
+                String key = customId.value();
+                return "item." + namespace + "." + key.replace("/", ".");
+            }
+        } catch (Exception e) {
+            // CE插件可能未加载，忽略错误
+        }
+        return null;
     }
 
     /**
@@ -221,4 +256,157 @@ public class ItemUtil {
         }
         return net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection().deserialize(message);
     }
+
+    /**
+     * 应用 NBT 组件到物品
+     * @param item 目标物品（会被直接修改）
+     * @param components NBT 组件配置 (path -> value)
+     * @return 应用后的物品（同一个实例）
+     */
+    public static ItemStack applyComponents(ItemStack item, Map<String, String> components) {
+        if (item == null || components == null || components.isEmpty()) {
+            return item;
+        }
+
+        de.tr7zw.nbtapi.NBT.modifyComponents(item, (ReadWriteNBT nbt) -> {
+            for (Map.Entry<String, String> entry : components.entrySet()) {
+                String path = entry.getKey();
+                String valueStr = entry.getValue();
+
+                try {
+                    // 调试信息
+                    System.out.println("[NBT Debug] Processing: path=" + path + ", value=" + valueStr);
+
+                    // 解析值
+                    Object value = NBTPathUtils.parseValue(valueStr);
+                    System.out.println("[NBT Debug] Parsed value: " + value + " (type: " + (value != null ? value.getClass().getSimpleName() : "null") + ")");
+
+                    // 应用设置
+                    applySetNbt(nbt, path, value);
+                } catch (Exception e) {
+                    // 调试信息
+                    System.out.println("[NBT Debug] Error processing " + path + ": " + e.getMessage());
+                    e.printStackTrace();
+                    // 忽略单个组件的错误，继续处理其他组件
+                }
+            }
+        });
+        return item;
+    }
+
+    /**
+     * 从配置解析组件配置（字符串列表格式）
+     * 格式: "path+value" 或 "path+{nbt}"
+     * 示例:
+     *   - "minecraft:enchantments+{levels:{'minecraft:sharpness':5}}"
+     *   - "minecraft:custom_name+'\"传说之剑\"'"
+     * @param obj 配置对象（必须是字符串列表）
+     * @return 组件映射，如果没有则返回空 map
+     */
+    @SuppressWarnings("unchecked")
+    public static Map<String, String> parseComponents(Object obj) {
+        Map<String, String> components = new java.util.HashMap<>();
+        if (obj == null) {
+            return components;
+        }
+
+        // 只支持字符串列表格式: components: ["path+value", "path+value"]
+        if (obj instanceof java.util.List) {
+            java.util.List<String> list = (java.util.List<String>) obj;
+            for (String entry : list) {
+                parseComponentEntry(entry, components);
+            }
+        }
+
+        return components;
+    }
+
+    /**
+     * 解析单个组件条目
+     * 格式: "path+value"
+     */
+    private static void parseComponentEntry(String entry, Map<String, String> components) {
+        if (entry == null || entry.isEmpty()) {
+            return;
+        }
+
+        // 找到第一个 + 分隔符
+        int firstPlus = entry.indexOf('+');
+        if (firstPlus == -1) {
+            // 没有 +，视为只有路径，值为空
+            System.out.println("[ItemUtil] Invalid component format (no +): " + entry);
+            return;
+        }
+
+        String path = entry.substring(0, firstPlus).trim();
+        String value = entry.substring(firstPlus + 1).trim();
+
+        if (!path.isEmpty()) {
+            components.put(path, value);
+            System.out.println("[ItemUtil] Parsed component: " + path + " = " + value);
+        }
+    }
+
+    /**
+     * 移除指定路径的 NBT
+     */
+    public static void applyRemoveNbt(de.tr7zw.nbtapi.iface.ReadWriteNBT nbt, String path) {
+        NBTPathUtils.PathNavigationResult result = NBTPathUtils.navigateToParent(nbt, path);
+        if (!result.isSuccess()) {
+            return;
+        }
+
+        de.tr7zw.nbtapi.iface.ReadWriteNBT parent = result.getParent();
+        String key = result.getLastKey();
+        List<NBTPathUtils.PathSegment> segments = NBTPathUtils.parsePath(path);
+        NBTPathUtils.PathSegment lastSegment = segments.get(segments.size() - 1);
+
+        if (lastSegment.hasIndex()) {
+            NBTPathUtils.removeListElement(parent, key, lastSegment.getIndex());
+        } else if (lastSegment.hasFilter()) {
+            Integer index = NBTPathUtils.resolveListFilterIndex(parent, key, lastSegment.getFilter());
+            if (index != null) {
+                NBTPathUtils.removeListElement(parent, key, index);
+            }
+        } else {
+            parent.removeKey(key);
+        }
+    }
+
+    /**
+     * 设置指定路径的 NBT 值
+     */
+    public static void applySetNbt(de.tr7zw.nbtapi.iface.ReadWriteNBT nbt, String path, Object value) {
+        NBTPathUtils.PathNavigationResult result = NBTPathUtils.navigateToParent(nbt, path);
+        if (!result.isSuccess()) {
+            System.out.println("[NBT Debug] Navigate failed for path: " + path);
+            return;
+        }
+
+        de.tr7zw.nbtapi.iface.ReadWriteNBT parent = result.getParent();
+        String key = result.getLastKey();
+        List<NBTPathUtils.PathSegment> segments = NBTPathUtils.parsePath(path);
+        NBTPathUtils.PathSegment lastSegment = segments.get(segments.size() - 1);
+
+        if (lastSegment.hasIndex()) {
+            if (value instanceof de.tr7zw.nbtapi.iface.ReadableNBT) {
+                NBTPathUtils.replaceInCompoundList(parent, key, lastSegment.getIndex(), (de.tr7zw.nbtapi.iface.ReadableNBT) value);
+                System.out.println("[NBT Debug] Replaced in compound list at index " + lastSegment.getIndex());
+            } else {
+                System.out.println("[NBT Debug] Cannot replace in list: value is not NBT compound");
+            }
+        } else if (lastSegment.hasFilter()) {
+            Integer index = NBTPathUtils.resolveListFilterIndex(parent, key, lastSegment.getFilter());
+            if (index != null && value instanceof de.tr7zw.nbtapi.iface.ReadableNBT) {
+                NBTPathUtils.replaceInCompoundList(parent, key, index, (de.tr7zw.nbtapi.iface.ReadableNBT) value);
+                System.out.println("[NBT Debug] Replaced in compound list at filtered index " + index);
+            } else {
+                System.out.println("[NBT Debug] Filter did not match or value is not NBT compound");
+            }
+        } else {
+            NBTPathUtils.setTypedValue(parent, key, value);
+            System.out.println("[NBT Debug] Value set successfully at " + key);
+        }
+    }
+
 }

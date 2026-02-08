@@ -2,6 +2,9 @@ package dev.user.shop.shop;
 
 import org.bukkit.inventory.ItemStack;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class ShopItem {
 
     private final String id;
@@ -14,12 +17,17 @@ public class ShopItem {
     private int slot;
     private boolean enabled;
     private int dailyLimit; // 每日购买限额，0表示无限制
+    private Map<String, String> components; // NBT 组件配置
 
     public ShopItem(String id, String itemKey, double buyPrice, double sellPrice, int stock, String category, int slot) {
-        this(id, itemKey, buyPrice, sellPrice, stock, category, slot, 0);
+        this(id, itemKey, buyPrice, sellPrice, stock, category, slot, 0, null);
     }
 
     public ShopItem(String id, String itemKey, double buyPrice, double sellPrice, int stock, String category, int slot, int dailyLimit) {
+        this(id, itemKey, buyPrice, sellPrice, stock, category, slot, dailyLimit, null);
+    }
+
+    public ShopItem(String id, String itemKey, double buyPrice, double sellPrice, int stock, String category, int slot, int dailyLimit, Map<String, String> components) {
         this.id = id;
         this.itemKey = itemKey;
         this.buyPrice = buyPrice;
@@ -29,6 +37,7 @@ public class ShopItem {
         this.slot = slot;
         this.enabled = true;
         this.dailyLimit = dailyLimit;
+        this.components = components != null ? components : new HashMap<>();
     }
 
     // Getters and Setters
@@ -74,4 +83,8 @@ public class ShopItem {
     public int getDailyLimit() { return dailyLimit; }
     public void setDailyLimit(int dailyLimit) { this.dailyLimit = dailyLimit; }
     public boolean hasDailyLimit() { return dailyLimit > 0; }
+
+    public Map<String, String> getComponents() { return components; }
+    public void setComponents(Map<String, String> components) { this.components = components != null ? components : new HashMap<>(); }
+    public boolean hasComponents() { return components != null && !components.isEmpty(); }
 }
