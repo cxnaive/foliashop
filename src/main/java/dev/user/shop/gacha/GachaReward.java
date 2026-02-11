@@ -96,9 +96,22 @@ public class GachaReward {
     /**
      * 获取显示名称的 Component 对象（兼容 MiniMessage 和传统颜色代码）
      * 配置中可以使用：<gold>物品名 或 §6物品名
+     * 如果没有配置 displayName，从物品获取
      */
     public Component getDisplayNameComponent() {
+        // 如果没有配置 displayName，从 displayItem 获取
         if (displayName == null || displayName.isEmpty()) {
+            if (displayItem != null) {
+                // 使用 ItemUtil.getDisplayName() 获取本地化名称
+                String itemDisplayName = dev.user.shop.util.ItemUtil.getDisplayName(displayItem);
+                // 如果是 <lang:...> 格式，需要特殊处理
+                if (itemDisplayName.startsWith("<lang:") && itemDisplayName.endsWith(">")) {
+                    String translationKey = itemDisplayName.substring(6, itemDisplayName.length() - 1);
+                    return Component.translatable(translationKey);
+                }
+                // 否则作为普通文本
+                return Component.text(itemDisplayName);
+            }
             return Component.text(itemKey);
         }
         // 如果包含传统颜色代码 §，使用 LegacyComponentSerializer

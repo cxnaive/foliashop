@@ -6,7 +6,6 @@ import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 import static dev.user.shop.util.ItemUtil.applyComponents;
 
@@ -18,38 +17,50 @@ public class GachaMachine {
     private final String icon;
     private final double cost;
     private final int animationDuration;
-    private final int animationDurationTen; // 10连抽动画时间（秒）
+    private final int animationDurationTen;
     private final boolean broadcastRare;
     private final double broadcastThreshold;
-    private final int slot; // 在选择界面的位置
-    private final List<PityRule> pityRules; // 保底规则列表
+    private final int slot;
     private final List<GachaReward> rewards;
-    private boolean enabled; // 是否启用
+    private boolean enabled;
 
-    // 展示实体覆盖配置（可选，为null时使用默认配置）
+    // 软保底配置
+    private final boolean pityEnabled;
+    private final int pityStart;
+    private final int pityMax;
+    private final double pityTargetMaxProbability;
+
+    // 展示实体覆盖配置
     private final DisplayEntityConfig displayConfig;
 
     // ICON NBT 组件配置
     private Map<String, String> iconComponents;
 
     private double totalProbability;
+    private double pityTargetBaseProbability;
+    private List<GachaReward> pityTargetRewards;
+    private List<GachaReward> nonPityRewards;
     private List<org.bukkit.inventory.ItemStack> cachedAnimationItems;
 
     public GachaMachine(String id, String name, List<String> description, String icon, double cost,
                         int animationDuration, int animationDurationTen, boolean broadcastRare, double broadcastThreshold, int slot,
-                        List<PityRule> pityRules, boolean enabled) {
-        this(id, name, description, icon, cost, animationDuration, animationDurationTen, broadcastRare, broadcastThreshold, slot, pityRules, enabled, null, null);
+                        boolean enabled, boolean pityEnabled, int pityStart, int pityMax, double pityTargetMaxProbability) {
+        this(id, name, description, icon, cost, animationDuration, animationDurationTen, broadcastRare, broadcastThreshold, slot,
+            enabled, pityEnabled, pityStart, pityMax, pityTargetMaxProbability, null, null);
     }
 
     public GachaMachine(String id, String name, List<String> description, String icon, double cost,
                         int animationDuration, int animationDurationTen, boolean broadcastRare, double broadcastThreshold, int slot,
-                        List<PityRule> pityRules, boolean enabled, DisplayEntityConfig displayConfig) {
-        this(id, name, description, icon, cost, animationDuration, animationDurationTen, broadcastRare, broadcastThreshold, slot, pityRules, enabled, displayConfig, null);
+                        boolean enabled, boolean pityEnabled, int pityStart, int pityMax, double pityTargetMaxProbability,
+                        DisplayEntityConfig displayConfig) {
+        this(id, name, description, icon, cost, animationDuration, animationDurationTen, broadcastRare, broadcastThreshold, slot,
+            enabled, pityEnabled, pityStart, pityMax, pityTargetMaxProbability, displayConfig, null);
     }
 
     public GachaMachine(String id, String name, List<String> description, String icon, double cost,
                         int animationDuration, int animationDurationTen, boolean broadcastRare, double broadcastThreshold, int slot,
-                        List<PityRule> pityRules, boolean enabled, DisplayEntityConfig displayConfig, Map<String, String> iconComponents) {
+                        boolean enabled, boolean pityEnabled, int pityStart, int pityMax, double pityTargetMaxProbability,
+                        DisplayEntityConfig displayConfig, Map<String, String> iconComponents) {
         this.id = id;
         this.name = name;
         this.description = description != null ? description : new ArrayList<>();
@@ -60,13 +71,16 @@ public class GachaMachine {
         this.broadcastRare = broadcastRare;
         this.broadcastThreshold = broadcastThreshold;
         this.slot = slot;
-        this.pityRules = pityRules != null ? pityRules.stream()
-            .sorted(Comparator.comparingInt(PityRule::getCount).reversed())
-            .collect(Collectors.toList()) : new ArrayList<>();
-        this.rewards = new ArrayList<>();
         this.enabled = enabled;
+        this.pityEnabled = pityEnabled;
+        this.pityStart = pityStart;
+        this.pityMax = pityMax;
+        this.pityTargetMaxProbability = pityTargetMaxProbability;
         this.displayConfig = displayConfig;
         this.iconComponents = iconComponents != null ? iconComponents : new HashMap<>();
+        this.rewards = new ArrayList<>();
+        this.pityTargetRewards = new ArrayList<>();
+        this.nonPityRewards = new ArrayList<>();
     }
 
     public void addReward(GachaReward reward) {
@@ -76,13 +90,23 @@ public class GachaMachine {
 
     private void recalculateProbabilities() {
         totalProbability = 0;
+        pityTargetBaseProbability = 0;
+        pityTargetRewards.clear();
+        nonPityRewards.clear();
+
         for (GachaReward reward : rewards) {
             totalProbability += reward.getProbability();
+            if (reward.getProbability() <= pityTargetMaxProbability) {
+                pityTargetRewards.add(reward);
+                pityTargetBaseProbability += reward.getProbability();
+            } else {
+                nonPityRewards.add(reward);
+            }
         }
     }
 
     /**
-     * 随机抽取一个奖品
+     * 随机抽取一个奖品（使用原始概率）
      */
     public GachaReward roll() {
         if (rewards.isEmpty()) return null;
@@ -97,21 +121,110 @@ public class GachaMachine {
             }
         }
 
-        // 兜底返回最后一个
         return rewards.get(rewards.size() - 1);
     }
 
     /**
-     * 获取指定稀有度及以上的奖品（用于动画展示）
+     * 带软保底的抽奖
+     * @param pityCount 当前保底计数
+     * @return 抽奖结果和是否触发保底
      */
-    public List<GachaReward> getRarifiedRewards(int minRarity) {
-        List<GachaReward> result = new ArrayList<>();
-        for (GachaReward reward : rewards) {
-            if (reward.getRarityLevel() >= minRarity) {
-                result.add(reward);
+    public PityResult rollWithPity(int pityCount) {
+        if (!pityEnabled || pityTargetRewards.isEmpty()) {
+            return new PityResult(roll(), false);
+        }
+
+        // 计算保底目标奖品的动态总概率
+        double pityTargetTotalProb = calculatePityTargetProbability(pityCount);
+
+        // 如果达到硬保底，必出保底目标
+        if (pityCount >= pityMax) {
+            return new PityResult(selectFromPityTargets(), true);
+        }
+
+        // 计算非保底目标奖品的缩放比例
+        double nonPityBase = 1.0 - pityTargetBaseProbability;
+        double nonPityScale = nonPityBase > 0.0001 ? (1.0 - pityTargetTotalProb) / nonPityBase : 0.0;
+
+        // 构建动态概率表
+        double random = Math.random();
+        double current = 0;
+
+        // 先尝试保底目标奖品（按原始概率比例分配动态概率）
+        if (pityTargetBaseProbability > 0) {
+            for (GachaReward reward : pityTargetRewards) {
+                double dynamicProb = (reward.getProbability() / pityTargetBaseProbability) * pityTargetTotalProb;
+                current += dynamicProb;
+                if (random <= current) {
+                    return new PityResult(reward, pityCount >= pityStart);
+                }
             }
         }
-        return result.isEmpty() ? rewards : result;
+
+        // 再尝试非保底目标奖品（概率被压缩）
+        for (GachaReward reward : nonPityRewards) {
+            double dynamicProb = reward.getProbability() * nonPityScale;
+            current += dynamicProb;
+            if (random <= current) {
+                return new PityResult(reward, false);
+            }
+        }
+
+        // 兜底返回最后一个保底目标
+        return new PityResult(pityTargetRewards.get(pityTargetRewards.size() - 1), true);
+    }
+
+    /**
+     * 计算保底目标奖品的动态总概率
+     */
+    private double calculatePityTargetProbability(int pityCount) {
+        if (pityCount < pityStart) {
+            return pityTargetBaseProbability;
+        }
+        if (pityCount >= pityMax) {
+            return 1.0;
+        }
+
+        // 线性增长
+        double progress = (double) (pityCount - pityStart) / (pityMax - pityStart);
+        return pityTargetBaseProbability + (1.0 - pityTargetBaseProbability) * progress;
+    }
+
+    /**
+     * 从保底目标中按原始概率比例随机选择一个
+     */
+    private GachaReward selectFromPityTargets() {
+        if (pityTargetRewards.isEmpty()) {
+            return rewards.get(rewards.size() - 1);
+        }
+
+        double random = Math.random() * pityTargetBaseProbability;
+        double current = 0;
+
+        for (GachaReward reward : pityTargetRewards) {
+            current += reward.getProbability();
+            if (random <= current) {
+                return reward;
+            }
+        }
+
+        return pityTargetRewards.get(pityTargetRewards.size() - 1);
+    }
+
+    /**
+     * 检查奖品是否是保底目标
+     */
+    public boolean isPityTarget(GachaReward reward) {
+        return reward != null && reward.getProbability() <= pityTargetMaxProbability;
+    }
+
+    /**
+     * 获取当前保底进度百分比（用于显示）
+     */
+    public double getPityProgress(int pityCount) {
+        if (!pityEnabled) return 0;
+        if (pityCount >= pityMax) return 100;
+        return (double) pityCount / pityMax * 100;
     }
 
     // Getters
@@ -128,67 +241,21 @@ public class GachaMachine {
 
     public int getSlot() { return slot; }
 
-    public List<PityRule> getPityRules() { return pityRules; }
-
-    public boolean hasPityRules() { return !pityRules.isEmpty(); }
-
     public boolean isEnabled() { return enabled; }
-
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
 
     public double getTotalProbability() { return totalProbability; }
 
-    /**
-     * 检查指定计数器是否触发保底
-     * @param counters 各规则的计数器 Map<ruleHash, count>
-     * @return 触发的保底规则，未触发返回null
-     */
-    public PityRule checkPityTrigger(Map<String, Integer> counters) {
-        // 从高到低检查，优先触发高档
-        for (int i = pityRules.size() - 1; i >= 0; i--) {
-            PityRule rule = pityRules.get(i);
-            int count = counters.getOrDefault(rule.getRuleHash(), 0);
-            if (count >= rule.getCount()) {
-                return rule;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * 获取保底奖品池（概率小于等于maxProbability的奖品）
-     * @param maxProbability 最大概率阈值
-     * @return 符合条件的奖品列表
-     */
-    public List<GachaReward> getPityRewards(double maxProbability) {
-        return rewards.stream()
-            .filter(r -> r.getProbability() <= maxProbability)
-            .collect(Collectors.toList());
-    }
-
-    /**
-     * 带保底的抽奖
-     * @param counters 各规则的计数器 Map<ruleHash, count>
-     * @return 抽奖结果和触发的规则（null表示未触发）
-     */
-    public PityResult rollWithPity(Map<String, Integer> counters) {
-        // 检查是否触发保底（从高到低）
-        PityRule triggeredRule = checkPityTrigger(counters);
-        if (triggeredRule != null) {
-            List<GachaReward> pityRewards = getPityRewards(triggeredRule.getMaxProbability());
-            if (!pityRewards.isEmpty()) {
-                GachaReward reward = pityRewards.get((int) (Math.random() * pityRewards.size()));
-                return new PityResult(reward, triggeredRule);
-            }
-        }
-        // 正常随机
-        return new PityResult(roll(), null);
-    }
+    // 软保底配置 Getters
+    public boolean isPityEnabled() { return pityEnabled; }
+    public int getPityStart() { return pityStart; }
+    public int getPityMax() { return pityMax; }
+    public double getPityTargetMaxProbability() { return pityTargetMaxProbability; }
 
     /**
      * 保底抽奖结果
      */
-    public record PityResult(GachaReward reward, PityRule triggeredRule) {
+    public record PityResult(GachaReward reward, boolean isPityTriggered) {
     }
 
     public boolean shouldBroadcast(GachaReward reward) {
@@ -196,28 +263,22 @@ public class GachaMachine {
     }
 
     /**
-     * 获取奖品满足的所有保底规则（用于正常抽奖时重置计数器）
-     * 如果奖品概率 <= 规则的 maxProbability，则视为满足该规则
-     * @param reward 抽到的奖品
-     * @return 满足的规则列表
+     * 获取指定稀有度及以上的奖品（用于动画展示）
      */
-    public List<PityRule> getSatisfiedPityRules(GachaReward reward) {
-        List<PityRule> satisfied = new ArrayList<>();
-        if (reward == null) return satisfied;
-
-        double rewardProbability = reward.getProbability();
-        for (PityRule rule : pityRules) {
-            if (rewardProbability <= rule.getMaxProbability()) {
-                satisfied.add(rule);
+    public List<GachaReward> getRarifiedRewards(int minRarity) {
+        List<GachaReward> result = new ArrayList<>();
+        for (GachaReward reward : rewards) {
+            if (reward.getRarityLevel() >= minRarity) {
+                result.add(reward);
             }
         }
-        return satisfied;
+        return result.isEmpty() ? rewards : result;
     }
 
     /**
      * 获取动画物品列表（带缓存）
      */
-    public List<org.bukkit.inventory.ItemStack> getAnimationItems() {
+    public synchronized List<org.bukkit.inventory.ItemStack> getAnimationItems() {
         if (cachedAnimationItems == null) {
             cachedAnimationItems = new ArrayList<>();
             for (GachaReward reward : rewards) {
@@ -243,7 +304,6 @@ public class GachaMachine {
         if (item == null) {
             item = new ItemStack(Material.CHEST);
         }
-        // 应用 ICON NBT 组件
         if (iconComponents != null && !iconComponents.isEmpty()) {
             item = applyComponents(item, iconComponents);
         }
@@ -254,16 +314,10 @@ public class GachaMachine {
     public void setIconComponents(Map<String, String> iconComponents) { this.iconComponents = iconComponents != null ? iconComponents : new HashMap<>(); }
     public boolean hasIconComponents() { return iconComponents != null && !iconComponents.isEmpty(); }
 
-    /**
-     * 获取展示实体配置（可能为null，表示使用默认配置）
-     */
     public DisplayEntityConfig getDisplayConfig() {
         return displayConfig;
     }
 
-    /**
-     * 检查是否有自定义展示实体配置
-     */
     public boolean hasDisplayConfig() {
         return displayConfig != null;
     }

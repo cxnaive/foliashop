@@ -2,6 +2,7 @@ package dev.user.shop.gui;
 
 import dev.user.shop.FoliaShopPlugin;
 import dev.user.shop.gacha.GachaMachine;
+import dev.user.shop.gacha.GachaManager;
 import dev.user.shop.gacha.GachaReward;
 import dev.user.shop.util.ItemUtil;
 import net.kyori.adventure.text.Component;
@@ -23,12 +24,15 @@ public class GachaTenResultGUI extends AbstractGUI {
     private final GachaMachine machine;
     private final List<GachaReward> rewards;
     private final Map<Integer, Boolean> claimedRewards; // 记录已领取的奖品
+    private final Map<String, Integer> rewardDrawCountsCache; // 缓存每个奖品的抽奖次数（用于播报）
 
-    public GachaTenResultGUI(FoliaShopPlugin plugin, Player player, GachaMachine machine, List<GachaReward> rewards) {
+    public GachaTenResultGUI(FoliaShopPlugin plugin, Player player, GachaMachine machine, GachaManager.TenGachaResult result) {
         super(plugin, player, plugin.getShopConfig().getGUITitle("gacha-ten-result"), 36);
         this.machine = machine;
-        this.rewards = rewards;
+        this.rewards = result.rewards();
         this.claimedRewards = new HashMap<>();
+        // 从 TenGachaResult 获取缓存的显示次数
+        this.rewardDrawCountsCache = result.rewardDrawCounts() != null ? result.rewardDrawCounts() : new HashMap<>();
     }
 
     @Override
@@ -121,7 +125,7 @@ public class GachaTenResultGUI extends AbstractGUI {
         }
 
         GachaReward reward = rewards.get(index);
-        giveReward(reward);
+        giveReward(reward, index);
         claimedRewards.put(index, true);
 
         // 更新显示
@@ -142,7 +146,7 @@ public class GachaTenResultGUI extends AbstractGUI {
             }
 
             GachaReward reward = rewards.get(i);
-            boolean wasDropped = giveReward(reward);
+            boolean wasDropped = giveReward(reward, i);
 
             // 无论物品是放入背包还是掉落在地上，都标记为已领取
             claimedRewards.put(i, true);
@@ -172,9 +176,10 @@ public class GachaTenResultGUI extends AbstractGUI {
     /**
      * 给予玩家奖品
      * @param reward 奖品
+     * @param index 奖品索引（用于广播缓存）
      * @return true 如果物品掉落在地上，false 如果成功放入背包
      */
-    private boolean giveReward(GachaReward reward) {
+    private boolean giveReward(GachaReward reward, int index) {
         ItemStack rewardItem = reward.getDisplayItem();
         if (rewardItem == null) return false;
 
@@ -190,12 +195,24 @@ public class GachaTenResultGUI extends AbstractGUI {
             player.getInventory().addItem(give);
         }
 
-        // 广播稀有奖品
+        // 广播稀有奖品（使用缓存的显示次数，不再查询数据库）
         if (machine.shouldBroadcast(reward)) {
             String itemName = ItemUtil.getDisplayName(rewardItem);
             String broadcastTemplate = plugin.getShopConfig().getRawMessage("gacha-broadcast");
+
+            // 从缓存获取显示次数（在十连抽计算时已确定）
+            Integer cachedCount = rewardDrawCountsCache.get(String.valueOf(index));
+            int drawCount;
+            if (cachedCount != null) {
+                // 缓存的是实际间隔次数，createBroadcastComponent 会 +1 显示
+                drawCount = cachedCount;
+            } else {
+                // 如果没有缓存（不应该发生），默认显示1抽
+                drawCount = 0;
+            }
+
             Component broadcastComponent = ItemUtil.createBroadcastComponent(
-                broadcastTemplate, player.getName(), machine.getName(), itemName);
+                broadcastTemplate, player.getName(), machine.getName(), itemName, drawCount);
             plugin.getServer().broadcast(broadcastComponent);
         }
 
@@ -211,49 +228,47 @@ public class GachaTenResultGUI extends AbstractGUI {
     private void startTenGachaDirectly(Player player) {
         double totalCost = machine.getCost() * 10;
 
-        // 异步检查余额并扣款
-        plugin.getEconomyManager().hasEnoughAsync(player, totalCost, hasEnough -> {
-            if (!hasEnough) {
-                player.sendMessage(plugin.getShopConfig().getMessage("insufficient-funds",
-                    java.util.Map.of("cost", String.format("%.2f", totalCost),
-                                    "currency", plugin.getShopConfig().getCurrencyName())));
-                return;
-            }
-
-            player.closeInventory();
-
+        // 先获取保底计数，确保在扣款前获取最新状态
+        plugin.getGachaManager().getPityCount(player.getUniqueId(), machine.getId(), pityCount -> {
             if (!player.isOnline()) {
                 return;
             }
 
-            // 异步扣除金钱
-            plugin.getEconomyManager().withdrawAsync(player, totalCost, success -> {
-                if (!success) {
+            // 异步检查余额并扣款
+            plugin.getEconomyManager().hasEnoughAsync(player, totalCost, hasEnough -> {
+                if (!hasEnough) {
                     player.sendMessage(plugin.getShopConfig().getMessage("insufficient-funds",
                         java.util.Map.of("cost", String.format("%.2f", totalCost),
                                         "currency", plugin.getShopConfig().getCurrencyName())));
                     return;
                 }
 
+                player.closeInventory();
+
                 if (!player.isOnline()) {
-                    // 玩家已掉线，退款
-                    plugin.getEconomyManager().deposit(player, totalCost);
                     return;
                 }
 
-                // 获取保底计数并进行10连抽（带保底）
-                plugin.getGachaManager().getPityCounters(player.getUniqueId(), machine.getId(), counters -> {
-                    // 使用公共方法执行10连抽
-                    var result = plugin.getGachaManager().performTenGacha(machine, counters);
-
-                    // 如果获得稀有奖品，发送提示（此时只提示，不更新计数器）
-                    String highestRarity = result.getHighestRarityPercent();
-                    if (highestRarity != null) {
-                        player.sendMessage("§6§l✦ 10连抽获得稀有度<" + highestRarity + ">奖品，保底计数已重置！");
+                // 异步扣除金钱
+                plugin.getEconomyManager().withdrawAsync(player, totalCost, success -> {
+                    if (!success) {
+                        player.sendMessage(plugin.getShopConfig().getMessage("insufficient-funds",
+                            java.util.Map.of("cost", String.format("%.2f", totalCost),
+                                            "currency", plugin.getShopConfig().getCurrencyName())));
+                        return;
                     }
 
-                    // 打开10连抽动画GUI，传入counters和satisfiedRules用于动画完成后更新
-                    new GachaTenAnimationGUI(plugin, player, machine, result.rewards(), counters, result.satisfiedRules()).open();
+                    if (!player.isOnline()) {
+                        // 玩家已掉线，退款
+                        plugin.getEconomyManager().deposit(player, totalCost);
+                        return;
+                    }
+
+                    // 执行10连抽（异步查询历史记录）
+                    plugin.getGachaManager().performTenGacha(machine, pityCount, player.getUniqueId(), result -> {
+                        // 打开10连抽动画GUI
+                        new GachaTenAnimationGUI(plugin, player, machine, result).open();
+                    });
                 });
             });
         });
@@ -273,7 +288,7 @@ public class GachaTenResultGUI extends AbstractGUI {
             }
 
             GachaReward reward = rewards.get(i);
-            boolean wasDropped = giveReward(reward);
+            boolean wasDropped = giveReward(reward, i);
             claimedRewards.put(i, true);
 
             unclaimedCount++;

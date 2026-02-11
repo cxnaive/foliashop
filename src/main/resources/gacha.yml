@@ -56,6 +56,11 @@ display-entity:
 # 配置说明:
 # - icon: 扭蛋机图标物品ID
 # - icon-components: 图标附加NBT组件（可选），格式: "path+value"
+# - pity: 软保底配置（可选）
+#     enabled: 是否启用
+#     start: 软保底开始计数（如70，表示70抽后开始增加保底概率）
+#     max: 硬保底计数（如90，表示90抽必出保底目标）
+#     target-max-probability: 保底目标奖品的概率阈值（如0.05表示概率<=5%的奖品为保底目标）
 #
 # NBT组件示例:
 #   icon-components:
@@ -87,6 +92,13 @@ machines:
     broadcast-rare: true
     # 稀有度阈值（低于此概率的奖品会广播）
     broadcast-threshold: 0.05
+
+    # 软保底配置（可选，不配置则不启用保底）
+    # pity:
+    #   enabled: true
+    #   start: 70
+    #   max: 90
+    #   target-max-probability: 0.05
 
     # 展示实体覆盖配置（可选）
     # 未设置的项将继承全局 display-entity 配置
@@ -196,10 +208,16 @@ machines:
       face-player: true
       height-offset: 2.0
 
-    # 保底规则示例
-    pity-rules:
-      - count: 10
-        max-probability: 0.15
+    # 软保底配置
+    pity:
+      # 是否启用软保底
+      enabled: true
+      # 软保底开始计数（达到此计数后，保底目标概率开始增长）
+      start: 70
+      # 硬保底计数（达到此计数必出保底目标）
+      max: 90
+      # 保底目标奖品的最大概率阈值（概率<=此值的奖品为保底目标）
+      target-max-probability: 0.05
 
     rewards:
       - id: "p_iron"

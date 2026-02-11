@@ -9,16 +9,25 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class GachaPreviewGUI extends AbstractGUI {
 
     private final GachaMachine machine;
+    private final List<GachaReward> sortedRewards;
+    private final boolean hasAdminPermission;
     private int page = 0;
 
     public GachaPreviewGUI(FoliaShopPlugin plugin, Player player, GachaMachine machine) {
         super(plugin, player, "§8奖品预览 - " + plugin.getShopConfig().convertMiniMessage(machine.getName()), 54);
         this.machine = machine;
+        this.hasAdminPermission = player.hasPermission("foliashop.admin");
+        // 按获奖难度从高到低排序（概率从低到高）
+        this.sortedRewards = machine.getRewards().stream()
+            .sorted(Comparator.comparingDouble(GachaReward::getProbability))
+            .collect(Collectors.toList());
     }
 
     @Override
@@ -28,7 +37,14 @@ public class GachaPreviewGUI extends AbstractGUI {
 
         fillBorder(Material.BLACK_STAINED_GLASS_PANE);
 
-        List<GachaReward> rewards = machine.getRewards();
+        // 清除之前的物品（10-43号槽位）
+        for (int i = 10; i <= 43; i++) {
+            if (i % 9 != 0 && i % 9 != 8) {
+                inventory.setItem(i, null);
+            }
+        }
+
+        List<GachaReward> rewards = sortedRewards;
         int itemsPerPage = 28; // 4行 * 7列
         int startIndex = page * itemsPerPage;
         int endIndex = Math.min(startIndex + itemsPerPage, rewards.size());
@@ -47,12 +63,16 @@ public class GachaPreviewGUI extends AbstractGUI {
 
             List<String> lore = new ArrayList<>();
             lore.add("");
-            lore.add("§7概率: §e" + String.format("%.2f", reward.getActualProbability() * 100) + "%");
-            lore.add("§7稀有度: " + reward.getRarityColor() + reward.getRarityPercent());
-            if (reward.shouldBroadcast()) {
-                lore.add("§6★ 稀有奖品");
+
+            // 只有admin权限才显示概率和稀有度
+            if (hasAdminPermission) {
+                lore.add("§7概率: §e" + String.format("%.2f", reward.getActualProbability() * 100) + "%");
+                lore.add("§7稀有度: " + reward.getRarityColor() + reward.getRarityPercent());
+                if (reward.shouldBroadcast()) {
+                    lore.add("§6★ 稀有奖品");
+                }
             }
-            lore.add("");
+
             lore.add("§7数量: §e" + reward.getAmount());
 
             ItemUtil.addLore(item, lore);

@@ -11,8 +11,11 @@ import java.sql.Driver;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.HashMap;
+import java.util.Map;
 
 public class DatabaseManager {
 
@@ -239,15 +242,13 @@ public class DatabaseManager {
                     ")";
             stmt.execute(dailyLimitsTable);
 
-            // 扭蛋保底计数表（多段保底，每个规则独立计数，使用rule_hash标识规则）
+            // 扭蛋保底计数表（软保底，单段计数）
             String pityCounterTable = "CREATE TABLE IF NOT EXISTS gacha_pity (" +
                     "    player_uuid VARCHAR(36) NOT NULL," +
                     "    machine_id VARCHAR(32) NOT NULL," +
-                    "    rule_hash VARCHAR(32) NOT NULL," +
                     "    draw_count INT DEFAULT 0," +
-                    "    last_pity_reward VARCHAR(64)," +
                     "    last_draw_time BIGINT DEFAULT 0," +
-                    "    PRIMARY KEY (player_uuid, machine_id, rule_hash)" +
+                    "    PRIMARY KEY (player_uuid, machine_id)" +
                     ")";
             stmt.execute(pityCounterTable);
 
@@ -274,6 +275,9 @@ public class DatabaseManager {
 
             // 数据库迁移：添加缺失的 outdated 列
             migrateAddOutdatedColumn(conn);
+
+            // 数据库迁移：软保底表结构迁移（从多段硬保底到单段软保底）
+            migratePityTableToSoftPity(conn);
 
             // 创建索引（H2和MySQL的索引语法略有不同）
             createIndexes(stmt, isMySQL);
@@ -414,6 +418,153 @@ public class DatabaseManager {
             }
         } catch (SQLException e) {
             plugin.getLogger().warning("[数据库迁移] 添加 outdated 列失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 数据库迁移：将多段硬保底表迁移到单段软保底表
+     * 检测旧表结构（有 rule_hash 列），迁移数据后重建新表
+     */
+    private void migratePityTableToSoftPity(Connection conn) {
+        try {
+            // 检查表是否存在（尝试多种大小写，数据库可能不区分大小写）
+            DatabaseMetaData metaData = conn.getMetaData();
+            boolean tableExists = false;
+
+            // 尝试不同的大小写形式
+            String[] tableNames = {"GACHA_PITY", "gacha_pity", "Gacha_Pity"};
+            for (String tableName : tableNames) {
+                try (ResultSet tables = metaData.getTables(null, null, tableName, null)) {
+                    if (tables.next()) {
+                        tableExists = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!tableExists) {
+                // 表不存在，是新数据库，无需迁移
+                plugin.getLogger().info("[数据库迁移] gacha_pity 表不存在，无需迁移");
+                return;
+            }
+
+            plugin.getLogger().info("[数据库迁移] 检测到 gacha_pity 表，检查表结构...");
+
+            // 检查是否是旧表结构（有 rule_hash 列）
+            // 尝试通过查询表结构来判断
+            boolean hasRuleHash = false;
+            try (ResultSet columns = metaData.getColumns(null, null, "GACHA_PITY", "RULE_HASH")) {
+                if (columns.next()) {
+                    hasRuleHash = true;
+                }
+            }
+
+            // 如果上面没找到，尝试小写
+            if (!hasRuleHash) {
+                try (ResultSet columns = metaData.getColumns(null, null, "gacha_pity", "rule_hash")) {
+                    if (columns.next()) {
+                        hasRuleHash = true;
+                    }
+                }
+            }
+
+            // 再尝试直接查询表结构
+            if (!hasRuleHash) {
+                try (Statement stmt = conn.createStatement();
+                     ResultSet rs = stmt.executeQuery("SELECT * FROM gacha_pity WHERE 1=0")) {
+                    ResultSetMetaData rsMeta = rs.getMetaData();
+                    for (int i = 1; i <= rsMeta.getColumnCount(); i++) {
+                        if (rsMeta.getColumnName(i).equalsIgnoreCase("rule_hash")) {
+                            hasRuleHash = true;
+                            break;
+                        }
+                    }
+                } catch (SQLException e) {
+                    // 表可能不存在，忽略错误
+                }
+            }
+
+            if (!hasRuleHash) {
+                // 没有 rule_hash 列，已经是新表结构
+                plugin.getLogger().info("[数据库迁移] gacha_pity 表已经是新版结构，无需迁移");
+                return;
+            }
+
+            plugin.getLogger().info("[数据库迁移] 检测到旧版保底表结构（有 rule_hash 列），开始迁移到软保底表...");
+
+            plugin.getLogger().info("[数据库迁移] 检测到旧版保底表结构，开始迁移到软保底表...");
+
+            // 备份旧数据：取每个 (player_uuid, machine_id) 的最大 draw_count
+            Map<String, Map<String, Integer>> pityData = new HashMap<>();
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery(
+                     "SELECT player_uuid, machine_id, MAX(draw_count) as max_count " +
+                     "FROM gacha_pity GROUP BY player_uuid, machine_id")) {
+                while (rs.next()) {
+                    String playerUuid = rs.getString("player_uuid");
+                    String machineId = rs.getString("machine_id");
+                    int maxCount = rs.getInt("max_count");
+
+                    pityData.computeIfAbsent(playerUuid, k -> new HashMap<>())
+                            .put(machineId, maxCount);
+                }
+            }
+
+            int migratedCount = pityData.values().stream()
+                .mapToInt(Map::size)
+                .sum();
+
+            plugin.getLogger().info("[数据库迁移] 找到 " + migratedCount + " 条需要迁移的保底记录");
+
+            // 删除旧表
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE gacha_pity");
+                plugin.getLogger().info("[数据库迁移] 已删除旧版保底表");
+            }
+
+            // 创建新表
+            boolean isMySQL = plugin.getDatabaseManager().isMySQL();
+            String newTableSql = "CREATE TABLE IF NOT EXISTS gacha_pity (" +
+                    "    player_uuid VARCHAR(36) NOT NULL," +
+                    "    machine_id VARCHAR(32) NOT NULL," +
+                    "    draw_count INT DEFAULT 0," +
+                    "    last_draw_time BIGINT DEFAULT 0," +
+                    "    PRIMARY KEY (player_uuid, machine_id)" +
+                    ")";
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute(newTableSql);
+                plugin.getLogger().info("[数据库迁移] 已创建新版软保底表");
+            }
+
+            // 插入迁移后的数据
+            long currentTime = System.currentTimeMillis();
+            String insertSql = isMySQL
+                ? "INSERT INTO gacha_pity (player_uuid, machine_id, draw_count, last_draw_time) VALUES (?, ?, ?, ?)"
+                : "MERGE INTO gacha_pity KEY(player_uuid, machine_id) VALUES (?, ?, ?, ?)";
+
+            try (PreparedStatement ps = conn.prepareStatement(insertSql)) {
+                for (Map.Entry<String, Map<String, Integer>> playerEntry : pityData.entrySet()) {
+                    String playerUuid = playerEntry.getKey();
+                    for (Map.Entry<String, Integer> machineEntry : playerEntry.getValue().entrySet()) {
+                        String machineId = machineEntry.getKey();
+                        int count = machineEntry.getValue();
+
+                        ps.setString(1, playerUuid);
+                        ps.setString(2, machineId);
+                        ps.setInt(3, count);
+                        ps.setLong(4, currentTime);
+                        ps.addBatch();
+                    }
+                }
+                ps.executeBatch();
+            }
+
+            plugin.getLogger().info("[数据库迁移] 保底表迁移完成，共迁移 " + migratedCount + " 条记录");
+            plugin.getLogger().info("[数据库迁移] 注意：旧版多段保底数据已合并为单段计数（取最高值）");
+
+        } catch (SQLException e) {
+            plugin.getLogger().warning("[数据库迁移] 保底表迁移失败: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 

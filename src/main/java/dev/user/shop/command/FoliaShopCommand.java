@@ -15,6 +15,7 @@ import org.bukkit.util.RayTraceResult;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 public class FoliaShopCommand implements CommandExecutor, TabCompleter {
 
@@ -144,6 +145,13 @@ public class FoliaShopCommand implements CommandExecutor, TabCompleter {
                 }
                 handleExportShopCommand(sender);
             }
+            case "stats" -> {
+                if (!sender.hasPermission("foliashop.admin")) {
+                    sender.sendMessage(plugin.getShopConfig().getMessage("no-permission"));
+                    return true;
+                }
+                handleStatsCommand(sender, args);
+            }
             case "help" -> sendHelp(sender);
             default -> sender.sendMessage("§c未知命令。使用 /foliashop help 查看帮助。");
         }
@@ -170,6 +178,7 @@ public class FoliaShopCommand implements CommandExecutor, TabCompleter {
                 completions.add("unbindblock");
                 completions.add("listblocks");
                 completions.add("exportshop");
+                completions.add("stats");
             }
             return completions.stream()
                 .filter(s -> s.toLowerCase().startsWith(args[0].toLowerCase()))
@@ -205,6 +214,40 @@ public class FoliaShopCommand implements CommandExecutor, TabCompleter {
             }
         }
 
+        // stats 命令的参数补全
+        if (args[0].equalsIgnoreCase("stats") && sender.hasPermission("foliashop.admin")) {
+            if (args.length == 2) {
+                // 第二个参数：玩家名（可选，输入 - 表示所有玩家）或扭蛋机ID
+                List<String> suggestions = new ArrayList<>();
+                suggestions.add("-"); // 表示所有玩家
+                // 添加在线玩家名
+                suggestions.addAll(plugin.getServer().getOnlinePlayers().stream()
+                    .map(p -> p.getName())
+                    .toList());
+                return suggestions.stream()
+                    .filter(s -> s.toLowerCase().startsWith(args[1].toLowerCase()))
+                    .toList();
+            }
+            if (args.length == 3) {
+                // 第三个参数：扭蛋机ID（如果第二个是 - 或玩家名）
+                return plugin.getGachaManager().getAllMachines().stream()
+                    .map(m -> m.getId())
+                    .filter(id -> id.toLowerCase().startsWith(args[2].toLowerCase()))
+                    .toList();
+            }
+            if (args.length == 4) {
+                // 第四个参数：奖品ID
+                String machineId = args[2];
+                var machine = plugin.getGachaManager().getMachine(machineId);
+                if (machine != null) {
+                    return machine.getRewards().stream()
+                        .map(r -> r.getId())
+                        .filter(id -> id.toLowerCase().startsWith(args[3].toLowerCase()))
+                        .toList();
+                }
+            }
+        }
+
         return completions;
     }
 
@@ -226,6 +269,7 @@ public class FoliaShopCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("§e/foliashop unbindblock §7- 解绑看向的方块");
             sender.sendMessage("§e/foliashop listblocks [machineId] §7- 列出方块绑定");
             sender.sendMessage("§e/foliashop exportshop §7- 导出商店数据到 backup_shop.yml");
+            sender.sendMessage("§e/foliashop stats [-|<玩家名>] <machineId> <rewardId> §7- 查询奖品统计");
         }
         sender.sendMessage("§6==================================");
     }
@@ -395,6 +439,87 @@ public class FoliaShopCommand implements CommandExecutor, TabCompleter {
             } else {
                 sender.sendMessage("§c✘ 导出失败，请查看控制台日志");
             }
+        });
+    }
+
+    private void handleStatsCommand(CommandSender sender, String[] args) {
+        if (args.length < 4) {
+            sender.sendMessage("§c用法: /foliashop stats [-|<玩家名>] <machineId> <rewardId>");
+            sender.sendMessage("§7- §7表示查询所有玩家");
+            sender.sendMessage("§7示例: /foliashop stats - normal diamond");
+            sender.sendMessage("§7示例: /foliashop stats Steve premium legendary_sword");
+            return;
+        }
+
+        String playerArg = args[1];
+        String machineId = args[2];
+        String rewardId = args[3];
+
+        // 检查扭蛋机是否存在
+        var machine = plugin.getGachaManager().getMachine(machineId);
+        if (machine == null) {
+            sender.sendMessage("§c错误：扭蛋机 '" + machineId + "' 不存在！");
+            sender.sendMessage("§7可用扭蛋机: §e" + String.join(", ",
+                plugin.getGachaManager().getAllMachines().stream()
+                    .map(m -> m.getId())
+                    .toList()));
+            return;
+        }
+
+        // 检查奖品是否存在
+        boolean rewardExists = machine.getRewards().stream()
+            .anyMatch(r -> r.getId().equals(rewardId));
+        if (!rewardExists) {
+            sender.sendMessage("§c错误：奖品 '" + rewardId + "' 不存在于扭蛋机 '" + machineId + "'！");
+            sender.sendMessage("§7可用奖品: §e" + String.join(", ",
+                machine.getRewards().stream()
+                    .map(r -> r.getId())
+                    .toList()));
+            return;
+        }
+
+        // 解析玩家
+        UUID playerUuid = null;
+        String playerName = null;
+        if (!playerArg.equals("-")) {
+            // 查找玩家
+            Player targetPlayer = plugin.getServer().getPlayerExact(playerArg);
+            if (targetPlayer == null) {
+                // 尝试从离线玩家查找
+                sender.sendMessage("§e正在查询离线玩家数据...");
+                // 使用玩家名作为显示名，UUID设为null表示查询不到具体玩家
+                playerName = playerArg;
+            } else {
+                playerUuid = targetPlayer.getUniqueId();
+                playerName = targetPlayer.getName();
+            }
+        }
+
+        String finalPlayerName = playerName;
+        UUID finalPlayerUuid = playerUuid;
+
+        sender.sendMessage("§e正在查询统计信息，请稍候...");
+
+        // 执行查询
+        plugin.getGachaManager().getRewardStats(playerUuid, machineId, rewardId, stats -> {
+            sender.sendMessage("§6========== 抽奖统计 ==========");
+            if (finalPlayerName == null) {
+                sender.sendMessage("§7玩家: §e所有玩家");
+            } else {
+                sender.sendMessage("§7玩家: §e" + finalPlayerName +
+                    (finalPlayerUuid == null ? " §7(离线，可能无数据)" : ""));
+            }
+            sender.sendMessage("§7扭蛋机: §e" + machine.getName() + " §7(" + machineId + ")");
+
+            // 获取奖品名称
+            String rewardName = machine.getRewards().stream()
+                .filter(r -> r.getId().equals(rewardId))
+                .findFirst()
+                .map(r -> r.getDisplayName() != null ? r.getDisplayName() : r.getItemKey())
+                .orElse(rewardId);
+            sender.sendMessage("§7奖品: §e" + rewardName + " §7(" + rewardId + ")");
+            sender.sendMessage(stats.getFormattedStats());
+            sender.sendMessage("§6==============================");
         });
     }
 

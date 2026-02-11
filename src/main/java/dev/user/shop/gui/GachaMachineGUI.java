@@ -2,13 +2,12 @@ package dev.user.shop.gui;
 
 import dev.user.shop.FoliaShopPlugin;
 import dev.user.shop.gacha.GachaMachine;
-import dev.user.shop.gacha.GachaReward;
-import dev.user.shop.gacha.PityRule;
 import dev.user.shop.util.ItemUtil;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class GachaMachineGUI extends AbstractGUI {
@@ -26,7 +25,15 @@ public class GachaMachineGUI extends AbstractGUI {
 
         // 扭蛋机图标
         ItemStack icon = machine.createIconItem(plugin);
-        ItemUtil.setDisplayName(icon, plugin.getShopConfig().convertMiniMessage("<yellow><bold>" + machine.getName()));
+        ItemUtil.setDisplayName(icon, plugin.getShopConfig().convertMiniMessage(machine.getName()));
+
+        // 添加 description 到 lore
+        List<String> iconLore = new ArrayList<>();
+        for (String desc : machine.getDescription()) {
+            iconLore.add(plugin.getShopConfig().convertMiniMessage(desc));
+        }
+        ItemUtil.setLore(icon, iconLore);
+
         setItem(4, icon);
 
         // 抽奖按钮
@@ -86,23 +93,22 @@ public class GachaMachineGUI extends AbstractGUI {
 
         executeGachaWithPayment(player, cost, () -> {
             // 获取保底计数并抽奖
-            plugin.getGachaManager().getPityCounters(player.getUniqueId(), machine.getId(), counters -> {
-                // 检查玩家是否仍然在线
-                if (!player.isOnline()) {
-                    return;
-                }
+            plugin.getGachaManager().getPityCount(player.getUniqueId(), machine.getId(), pityCount -> {
+                if (!player.isOnline()) return;
 
-                // 使用保底抽奖
-                GachaMachine.PityResult result = machine.rollWithPity(counters);
-                GachaReward reward = result.reward();
-                PityRule triggeredRule = result.triggeredRule();
+                // 使用软保底抽奖
+                GachaMachine.PityResult result = machine.rollWithPity(pityCount);
 
-                // 获取奖品满足的所有保底规则（包括触发保底的和正常抽到但满足条件的）
-                List<PityRule> satisfiedRules = machine.getSatisfiedPityRules(reward);
+                // 立即更新保底计数，确保后续抽奖基于最新状态
+                // 注意：即使玩家提前关闭界面，保底计数也不会回滚
+                plugin.getGachaManager().updatePityCount(
+                    player.getUniqueId(),
+                    machine.getId(),
+                    machine.isPityTarget(result.reward())
+                );
 
-                // 打开动画GUI，传入满足的规则列表用于动画完成后更新计数器
-                // 提示信息会在动画完成后显示
-                new GachaAnimationGUI(plugin, player, machine, reward, satisfiedRules, triggeredRule != null).open();
+                // 打开动画GUI
+                new GachaAnimationGUI(plugin, player, machine, result).open();
             });
         });
     }
@@ -111,23 +117,23 @@ public class GachaMachineGUI extends AbstractGUI {
         double totalCost = machine.getCost() * 10;
 
         executeGachaWithPayment(player, totalCost, () -> {
-            // 获取保底计数并进行10连抽（带保底）
-            plugin.getGachaManager().getPityCounters(player.getUniqueId(), machine.getId(), counters -> {
-                // 使用公共方法执行10连抽
-                var result = plugin.getGachaManager().performTenGacha(machine, counters);
+            // 获取保底计数并进行10连抽（异步查询历史记录）
+            plugin.getGachaManager().getPityCount(player.getUniqueId(), machine.getId(), pityCount -> {
+                if (!player.isOnline()) return;
 
-                // 打开10连抽动画GUI，传入counters和satisfiedRules用于动画完成后更新
-                // 提示信息会在动画完成后显示
-                new GachaTenAnimationGUI(plugin, player, machine, result.rewards(), counters, result.satisfiedRules()).open();
+                // 执行10连抽（异步查询历史并计算显示次数）
+                plugin.getGachaManager().performTenGacha(machine, pityCount, player.getUniqueId(), result -> {
+                    if (!player.isOnline()) return;
+
+                    // 打开10连抽动画GUI
+                    new GachaTenAnimationGUI(plugin, player, machine, result).open();
+                });
             });
         });
     }
 
     /**
      * 执行扭蛋的通用支付和验证流程
-     * @param player 玩家
-     * @param cost 花费
-     * @param onSuccess 支付成功后的回调
      */
     private void executeGachaWithPayment(Player player, double cost, Runnable onSuccess) {
         plugin.getEconomyManager().hasEnoughAsync(player, cost, hasEnough -> {
@@ -138,15 +144,9 @@ public class GachaMachineGUI extends AbstractGUI {
                 return;
             }
 
-            // 关闭GUI
             player.closeInventory();
+            if (!player.isOnline()) return;
 
-            // 检查玩家是否仍然在线
-            if (!player.isOnline()) {
-                return;
-            }
-
-            // 异步扣除金钱
             plugin.getEconomyManager().withdrawAsync(player, cost, success -> {
                 if (!success) {
                     player.sendMessage(plugin.getShopConfig().getMessage("insufficient-funds",
@@ -155,14 +155,11 @@ public class GachaMachineGUI extends AbstractGUI {
                     return;
                 }
 
-                // 检查玩家是否仍然在线（防止扣钱后掉线）
                 if (!player.isOnline()) {
-                    // 玩家已掉线，退款
                     plugin.getEconomyManager().deposit(player, cost);
                     return;
                 }
 
-                // 执行抽奖逻辑
                 onSuccess.run();
             });
         });

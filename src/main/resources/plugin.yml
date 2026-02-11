@@ -28,10 +28,10 @@ permissions:
     default: true
     description: 使用商店功能
   foliashop.shop.sell:
-    default: true
+    default: op
     description: 出售物品给系统
   foliashop.gacha.use:
-    default: true
+    default: op
     description: 使用扭蛋功能
   foliashop.admin:
     default: op

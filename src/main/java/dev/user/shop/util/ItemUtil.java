@@ -278,6 +278,24 @@ public class ItemUtil {
      */
     public static net.kyori.adventure.text.Component createBroadcastComponent(
             String template, String player, String machine, String itemName) {
+        return createBroadcastComponent(template, player, machine, itemName, -1);
+    }
+
+    /**
+     * 创建广播消息，支持可翻译的物品名称和抽奖次数
+     * 配置格式: "<gold><bold>🎉 恭喜 {player} 从 {machine} 抽中了 {item}！"
+     * 其中 {item} 会被特殊处理为 Component.translatable()
+     * {draws} 会被替换为距离上次抽到该奖品的次数
+     *
+     * @param template 消息模板（MiniMessage 格式）
+     * @param player 玩家名称
+     * @param machine 扭蛋机名称
+     * @param itemName 物品名称（包含 <lang:...> 格式）
+     * @param drawsSinceLast 距离上次抽到该奖品的次数（-1表示不显示）
+     * @return 构建好的 Component
+     */
+    public static net.kyori.adventure.text.Component createBroadcastComponent(
+            String template, String player, String machine, String itemName, int drawsSinceLast) {
 
         // 提取翻译 key（去掉 <lang: 和 >）
         String translationKey = extractTranslationKey(itemName);
@@ -292,6 +310,11 @@ public class ItemUtil {
 
             // 替换 {player} 和 {machine}
             part = part.replace("{player}", player).replace("{machine}", machine);
+
+            // 替换 {draws} 为抽奖次数（距离上次抽到该奖品的次数+1，表示第几抽才抽到）
+            if (drawsSinceLast >= 0) {
+                part = part.replace("{draws}", (drawsSinceLast + 1) + "抽");
+            }
 
             // 解析 MiniMessage 格式（<gold><bold> 等）
             result = result.append(parseMiniMessage(part));

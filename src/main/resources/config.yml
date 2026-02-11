@@ -108,7 +108,7 @@ messages:
   # 扭蛋相关
   gacha-start: "<yellow>🎰 开始抽奖..."
   gacha-result: "<green>🎉 恭喜获得：<gold>{item}"
-  gacha-broadcast: "<gold><bold>🎉 恭喜 {player} 从 {machine} 抽中了 {item}！"
+  gacha-broadcast: "<gold><bold>🎉 恭喜 {player} 从 {machine} 抽中了 {item}！<yellow>({draws})"
   gacha-cancelled: "<yellow>抽奖已取消，已退还 <gold>{amount} {currency}"
 
   # 系统相关
