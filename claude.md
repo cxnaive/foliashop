@@ -12,6 +12,8 @@
 - [x] 支持 CraftEngine 自定义物品（CE物品）
 - [x] 交易记录（玩家可查询最近20次）
 - [x] 每日购买限额（每个物品独立配置）
+- [x] 玩家限购（终身购买限制，每个物品独立配置）
+- [x] 支持 PlayerPoints 积分支付
 
 ### 扭蛋系统
 - [x] 多扭蛋机支持
@@ -35,6 +37,30 @@
 - [x] 保底表结构迁移（多段→单段，保留数据）
 
 ## 最近更新
+
+### 2025-02-14
+1. **Component API 迁移完成** - 全面升级消息系统
+   - 新增 `MessageUtil` 工具类，统一处理消息构建
+   - 支持 `Placeholder` 占位符系统（text/component/translatable）
+   - 可翻译物品名称 (`<lang:...>`) 正确显示
+   - `ShopConfig.getComponent()` 替代旧的 `getMessage()`
+2. **玩家限购功能 (player-limit)** - 终身购买限制
+   - 每个商品可配置玩家终身购买上限
+   - 数据库表 `player_item_limits` 存储记录
+   - 默认 `0` 表示不限量
+3. **PurchaseManager** - 统一购买逻辑
+   - 单线程队列保证购买原子性
+   - 整合每日限额和玩家限额检查
+   - 支持 PlayerPoints 积分支付
+   - 异步命令执行（GlobalRegionScheduler）
+4. **PlayerPoints 支持** - 新增积分支付方式
+   - 软依赖 PlayerPoints 插件
+   - 支持金币/积分混合支付
+   - 配置: `playerpoints-enabled`, `playerpoints-cost`
+5. **移除弃用代码** - 清理过期 API
+   - 删除 `ShopConfig.getMessage()`, `convertMiniMessage()`
+   - 删除 `ItemUtil.createBroadcastComponent()` 等旧方法
+   - 所有代码迁移到新的 Component API
 
 ### 2025-02-09
 1. **软保底机制** - 替换多段硬保底为单段软保底
@@ -101,6 +127,13 @@
 - CraftEngine Bukkit 0.0.67
 - HikariCP 6.2.1
 - H2 / MySQL
+- NBT-API 2.15.5
+
+## 依赖说明
+- **XConomy**: 硬依赖，经济系统
+- **CraftEngine**: 硬依赖，自定义物品支持
+- **PlayerPoints**: 软依赖，积分支付
+- **NBT-API**: 硬依赖，NBT 组件操作
 
 ## 最近更新
 
@@ -122,10 +155,43 @@
    - 修复 last_pity_reward 被错误覆盖为 null 的问题
 
 ## 待办事项
-- [ ] 考虑使用 Component API 替代弃用的 String 标题方法
+- [x] ~~考虑使用 Component API 替代弃用的 String 标题方法~~ (2025-02-14 已完成)
 - [ ] CustomModelData 新 API 待稳定后更新
 - [ ] 考虑添加潜行检查（shift+右键允许放置方块）
 - [ ] 考虑添加手持物品检查（手持方块时允许放置）
+
+## Component API 使用指南
+
+### 基础用法
+```java
+// 简单消息
+Component msg = plugin.getShopConfig().getComponent("purchase-success");
+
+// 带占位符
+Component msg = plugin.getShopConfig().getComponent("purchase-success",
+    MessageUtil.Placeholder.text("amount", "10"),
+    MessageUtil.Placeholder.text("cost", "100.00")
+);
+
+// 带可翻译物品名称
+Component msg = plugin.getShopConfig().getItemMessage("purchase-success", "item", itemStack,
+    Map.of("amount", "10", "cost", "100.00")
+);
+```
+
+### Placeholder 类型
+- `Placeholder.text(key, value)` - 纯文本占位符
+- `Placeholder.component(key, component)` - Component 占位符
+- `Placeholder.item(key, itemStack)` - 自动提取物品翻译键
+- `Placeholder.translatable(key, translationKey)` - 直接指定翻译键
+
+### 配置格式示例
+```yaml
+messages:
+  prefix: "<gradient:#00FF00:#00AA00>[商店]</gradient> "
+  purchase-success: "<prefix><green>成功购买 <yellow>{amount}</yellow> 个 <item>"
+  insufficient-funds: "<prefix><red>余额不足，需要 <yellow>{cost} {currency}"
+```
 
 ## 构建命令
 ```bash
