@@ -4,6 +4,7 @@ import dev.user.shop.FoliaShopPlugin;
 import dev.user.shop.gacha.GachaMachine;
 import dev.user.shop.gacha.GachaReward;
 import dev.user.shop.util.ItemUtil;
+import dev.user.shop.util.MessageUtil;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -21,7 +22,7 @@ public class GachaPreviewGUI extends AbstractGUI {
     private int page = 0;
 
     public GachaPreviewGUI(FoliaShopPlugin plugin, Player player, GachaMachine machine) {
-        super(plugin, player, "§8奖品预览 - " + plugin.getShopConfig().convertMiniMessage(machine.getName()), 54);
+        super(plugin, player, "§8奖品预览 - " + MessageUtil.convertMiniMessageToLegacy(machine.getName()), 54);
         this.machine = machine;
         this.hasAdminPermission = player.hasPermission("foliashop.admin");
         // 按获奖难度从高到低排序（概率从低到高）

@@ -3,6 +3,7 @@ package dev.user.shop.gui;
 import dev.user.shop.FoliaShopPlugin;
 import dev.user.shop.shop.ShopManager;
 import dev.user.shop.util.ItemUtil;
+import dev.user.shop.util.MessageUtil;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -38,7 +39,7 @@ public class ShopCategoryGUI extends AbstractGUI {
             ShopManager.ShopCategory category = categories.get(i);
 
             ItemStack icon = ItemUtil.createItemFromKey(plugin, category.getIcon());
-            ItemUtil.setDisplayName(icon, plugin.getShopConfig().convertMiniMessage("<yellow><bold>" + category.getName()));
+            ItemUtil.setDisplayName(icon, MessageUtil.convertMiniMessageToLegacy("<yellow><bold>" + category.getName()));
 
             // 计算该分类下的商品数量
             long itemCount = plugin.getShopManager().getItemsByCategory(category.getId()).size();

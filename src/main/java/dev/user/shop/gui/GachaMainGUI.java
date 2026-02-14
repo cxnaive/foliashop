@@ -3,6 +3,7 @@ package dev.user.shop.gui;
 import dev.user.shop.FoliaShopPlugin;
 import dev.user.shop.gacha.GachaMachine;
 import dev.user.shop.util.ItemUtil;
+import dev.user.shop.util.MessageUtil;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -51,12 +52,12 @@ public class GachaMainGUI extends AbstractGUI {
             }
 
             ItemStack icon = machine.createIconItem(plugin);
-            ItemUtil.setDisplayName(icon, plugin.getShopConfig().convertMiniMessage("<yellow><bold>" + machine.getName()));
+            ItemUtil.setDisplayName(icon, MessageUtil.convertMiniMessageToLegacy("<yellow><bold>" + machine.getName()));
 
             java.util.List<String> lore = new java.util.ArrayList<>();
             // 转换 MiniMessage 格式的描述
             for (String descLine : machine.getDescription()) {
-                lore.add(plugin.getShopConfig().convertMiniMessage(descLine));
+                lore.add(MessageUtil.convertMiniMessageToLegacy(descLine));
             }
             lore.add("");
             lore.add("§7每次抽奖: §e" + plugin.getShopConfig().formatCurrency(machine.getCost()));

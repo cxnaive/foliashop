@@ -189,19 +189,28 @@ public class DatabaseManager {
                     "    item_key VARCHAR(128) NOT NULL," +
                     "    buy_price DECIMAL(18,2) DEFAULT 0," +
                     "    sell_price DECIMAL(18,2) DEFAULT 0," +
+                    "    buy_points INT DEFAULT 0," +
                     "    stock INT DEFAULT -1," +
                     "    category VARCHAR(32) DEFAULT 'misc'," +
                     "    slot INT DEFAULT 0," +
                     "    enabled BOOLEAN DEFAULT TRUE," +
-                    "    daily_limit INT DEFAULT 0" +
+                    "    daily_limit INT DEFAULT 0," +
+                    "    components TEXT," +
+                    "    buy_points INT DEFAULT 0," +
+                    "    commands TEXT," +
+                    "    conditions TEXT," +
+                    "    give_item BOOLEAN DEFAULT TRUE" +
                     ")";
             stmt.execute(shopItemsTable);
 
-            // 数据库迁移：添加缺失的 daily_limit 列
+            // 数据库迁移：添加缺失的列
             migrateAddDailyLimitColumn(conn);
-
-            // 数据库迁移：添加缺失的 components 列
             migrateAddComponentsColumn(conn);
+            migrateAddBuyPointsColumn(conn);
+            migrateAddPlayerLimitColumn(conn);
+            migrateAddCommandsColumn(conn);
+            migrateAddConditionsColumn(conn);
+            migrateAddGiveItemColumn(conn);
 
             // 交易记录表
             String idColumn = isMySQL ? "id BIGINT AUTO_INCREMENT PRIMARY KEY" : "id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY";
@@ -241,6 +250,15 @@ public class DatabaseManager {
                     "    PRIMARY KEY (player_uuid, item_id)" +
                     ")";
             stmt.execute(dailyLimitsTable);
+
+            // 玩家终身购买限制表（player-limit功能）
+            String playerItemLimitsTable = "CREATE TABLE IF NOT EXISTS player_item_limits (" +
+                    "    player_uuid VARCHAR(36) NOT NULL," +
+                    "    item_id VARCHAR(64) NOT NULL," +
+                    "    buy_count INT DEFAULT 0," +
+                    "    PRIMARY KEY (player_uuid, item_id)" +
+                    ")";
+            stmt.execute(playerItemLimitsTable);
 
             // 扭蛋保底计数表（软保底，单段计数）
             String pityCounterTable = "CREATE TABLE IF NOT EXISTS gacha_pity (" +
@@ -359,6 +377,129 @@ public class DatabaseManager {
             }
         } catch (SQLException e) {
             plugin.getLogger().warning("[数据库迁移] 添加 components 列失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 数据库迁移：添加 buy_points 列到 shop_items 表
+     */
+    private void migrateAddBuyPointsColumn(Connection conn) {
+        try {
+            // 检查列是否存在
+            DatabaseMetaData metaData = conn.getMetaData();
+            boolean columnExists = false;
+            try (ResultSet columns = metaData.getColumns(null, null, "SHOP_ITEMS", "BUY_POINTS")) {
+                if (columns.next()) {
+                    columnExists = true;
+                }
+            }
+
+            // 如果列不存在，添加它
+            if (!columnExists) {
+                plugin.getLogger().info("[数据库迁移] 正在添加 buy_points 列到 shop_items 表...");
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute("ALTER TABLE shop_items ADD COLUMN buy_points INT DEFAULT 0");
+                    plugin.getLogger().info("[数据库迁移] buy_points 列添加成功");
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().warning("[数据库迁移] 添加 buy_points 列失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 数据库迁移：添加 player_limit 列到 shop_items 表
+     */
+    private void migrateAddPlayerLimitColumn(Connection conn) {
+        try {
+            DatabaseMetaData metaData = conn.getMetaData();
+            boolean columnExists = false;
+            try (ResultSet columns = metaData.getColumns(null, null, "SHOP_ITEMS", "PLAYER_LIMIT")) {
+                if (columns.next()) {
+                    columnExists = true;
+                }
+            }
+            if (!columnExists) {
+                plugin.getLogger().info("[数据库迁移] 正在添加 player_limit 列到 shop_items 表...");
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute("ALTER TABLE shop_items ADD COLUMN player_limit INT DEFAULT 0");
+                    plugin.getLogger().info("[数据库迁移] player_limit 列添加成功");
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().warning("[数据库迁移] 添加 player_limit 列失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 数据库迁移：添加 commands 列到 shop_items 表
+     */
+    private void migrateAddCommandsColumn(Connection conn) {
+        try {
+            DatabaseMetaData metaData = conn.getMetaData();
+            boolean columnExists = false;
+            try (ResultSet columns = metaData.getColumns(null, null, "SHOP_ITEMS", "COMMANDS")) {
+                if (columns.next()) {
+                    columnExists = true;
+                }
+            }
+            if (!columnExists) {
+                plugin.getLogger().info("[数据库迁移] 正在添加 commands 列到 shop_items 表...");
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute("ALTER TABLE shop_items ADD COLUMN commands TEXT");
+                    plugin.getLogger().info("[数据库迁移] commands 列添加成功");
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().warning("[数据库迁移] 添加 commands 列失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 数据库迁移：添加 conditions 列到 shop_items 表
+     */
+    private void migrateAddConditionsColumn(Connection conn) {
+        try {
+            DatabaseMetaData metaData = conn.getMetaData();
+            boolean columnExists = false;
+            try (ResultSet columns = metaData.getColumns(null, null, "SHOP_ITEMS", "CONDITIONS")) {
+                if (columns.next()) {
+                    columnExists = true;
+                }
+            }
+            if (!columnExists) {
+                plugin.getLogger().info("[数据库迁移] 正在添加 conditions 列到 shop_items 表...");
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute("ALTER TABLE shop_items ADD COLUMN conditions TEXT");
+                    plugin.getLogger().info("[数据库迁移] conditions 列添加成功");
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().warning("[数据库迁移] 添加 conditions 列失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 数据库迁移：添加 give_item 列到 shop_items 表
+     */
+    private void migrateAddGiveItemColumn(Connection conn) {
+        try {
+            DatabaseMetaData metaData = conn.getMetaData();
+            boolean columnExists = false;
+            try (ResultSet columns = metaData.getColumns(null, null, "SHOP_ITEMS", "GIVE_ITEM")) {
+                if (columns.next()) {
+                    columnExists = true;
+                }
+            }
+            if (!columnExists) {
+                plugin.getLogger().info("[数据库迁移] 正在添加 give_item 列到 shop_items 表...");
+                try (Statement stmt = conn.createStatement()) {
+                    stmt.execute("ALTER TABLE shop_items ADD COLUMN give_item BOOLEAN DEFAULT TRUE");
+                    plugin.getLogger().info("[数据库迁移] give_item 列添加成功");
+                }
+            }
+        } catch (SQLException e) {
+            plugin.getLogger().warning("[数据库迁移] 添加 give_item 列失败: " + e.getMessage());
         }
     }
 

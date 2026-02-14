@@ -3,6 +3,7 @@ package dev.user.shop.gui;
 import dev.user.shop.FoliaShopPlugin;
 import dev.user.shop.gacha.GachaManager;
 import dev.user.shop.util.ItemUtil;
+import dev.user.shop.util.MessageUtil;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -93,7 +94,7 @@ public class GachaHistoryGUI extends AbstractGUI {
         String timeStr = DATE_FORMAT.format(Instant.ofEpochMilli(record.getTimestamp()));
         String machineNameRaw = getMachineDisplayName(record.getMachineId());
         // 解析 MiniMessage 格式（如 <gold>高级扭蛋机）
-        String machineName = plugin.getShopConfig().convertMiniMessage(machineNameRaw);
+        String machineName = MessageUtil.convertMiniMessageToLegacy(machineNameRaw);
 
         // 保持物品原始名称，只在lore中添加信息
         ItemUtil.setLore(item, List.of(

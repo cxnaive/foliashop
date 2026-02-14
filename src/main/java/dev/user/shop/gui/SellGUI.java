@@ -3,6 +3,8 @@ package dev.user.shop.gui;
 import dev.user.shop.FoliaShopPlugin;
 import dev.user.shop.shop.ShopItem;
 import dev.user.shop.util.ItemUtil;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -128,16 +130,17 @@ public class SellGUI extends AbstractGUI {
                 for (SellEntry entry : finalEntriesToSell) {
                     returnItemToPlayer(player, entry.originalItem);
                 }
-                player.sendMessage("§c经济系统错误，出售已取消，物品已返还！");
+                player.sendMessage(Component.text("经济系统错误，出售已取消，物品已返还！").color(NamedTextColor.RED));
                 return;
             }
 
             // 发送消息 - 批量出售显示总数量和物品种类
-            player.sendMessage(plugin.getShopConfig().getMessage("sell-success-batch",
+            Component sellMessage = plugin.getShopConfig().getComponent("sell-success-batch",
                 Map.of("count", String.valueOf(finalEntriesToSell.size()),
                        "total", String.valueOf(totalItems),
                        "reward", String.format("%.2f", finalTotalReward),
-                       "currency", plugin.getShopConfig().getCurrencyName())));
+                       "currency", plugin.getShopConfig().getCurrencyName()));
+            player.sendMessage(sellMessage);
 
             // 增加商店库存（如果是商店物品且配置允许）
             if (plugin.getShopConfig().isAddStockOnSell()) {

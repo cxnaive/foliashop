@@ -4,7 +4,9 @@ import dev.user.shop.FoliaShopPlugin;
 import dev.user.shop.gacha.GachaMachine;
 import dev.user.shop.gacha.GachaReward;
 import dev.user.shop.util.ItemUtil;
+import dev.user.shop.util.MessageUtil;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
@@ -14,6 +16,7 @@ import org.bukkit.inventory.ItemStack;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -68,7 +71,7 @@ public class GachaAnimationGUI extends AbstractGUI {
     }
 
     private void startAnimation() {
-        player.sendMessage(plugin.getShopConfig().getMessage("gacha-start"));
+        player.sendMessage(plugin.getShopConfig().getComponent("gacha-start"));
         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, SoundCategory.MASTER, 1.0f, 2.0f);
         slowdownStartTick = (int) (animationDuration * 0.7);
 
@@ -221,22 +224,28 @@ public class GachaAnimationGUI extends AbstractGUI {
 
         if (player.getInventory().firstEmpty() == -1) {
             player.getWorld().dropItemNaturally(player.getLocation(), give);
-            player.sendMessage("§e背包已满，物品已掉落在地上！");
+            player.sendMessage(Component.text("背包已满，物品已掉落在地上！").color(NamedTextColor.YELLOW));
         } else {
             player.getInventory().addItem(give);
         }
 
-        String itemName = ItemUtil.getDisplayName(rewardItem);
-        player.sendMessage(plugin.getShopConfig().getMessage("gacha-result",
-            java.util.Map.of("item", itemName)));
+        // 使用 Component API 发送抽奖结果消息
+        Component resultMessage = plugin.getShopConfig().getItemMessage(
+            "gacha-result",
+            "item",
+            rewardItem,
+            Map.of()
+        );
+        player.sendMessage(resultMessage);
 
         if (machine.shouldBroadcast(finalReward)) {
             String broadcastTemplate = plugin.getShopConfig().getRawMessage("gacha-broadcast");
             plugin.getGachaManager().getDrawsSinceLastReward(
                 player.getUniqueId(), machine.getId(), finalReward.getId(),
                 draws -> {
-                    Component broadcastComponent = ItemUtil.createBroadcastComponent(
-                        broadcastTemplate, player.getName(), machine.getName(), itemName, draws);
+                    String itemNameForBroadcast = ItemUtil.getDisplayName(rewardItem);
+                    Component broadcastComponent = MessageUtil.createGachaBroadcast(
+                        broadcastTemplate, player.getName(), machine.getName(), itemNameForBroadcast, draws);
                     plugin.getServer().broadcast(broadcastComponent);
                 }
             );

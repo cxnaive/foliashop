@@ -2,6 +2,8 @@ package dev.user.shop.command;
 
 import dev.user.shop.FoliaShopPlugin;
 import dev.user.shop.gui.ShopCategoryGUI;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -22,17 +24,17 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(plugin.getShopConfig().getMessage("player-only"));
+            sender.sendMessage(plugin.getShopConfig().getComponent("player-only"));
             return true;
         }
 
         if (!plugin.getShopConfig().isShopEnabled()) {
-            player.sendMessage(plugin.getShopConfig().getMessage("feature-disabled"));
+            player.sendMessage(plugin.getShopConfig().getComponent("feature-disabled"));
             return true;
         }
 
         if (!player.hasPermission("foliashop.shop.use")) {
-            player.sendMessage(plugin.getShopConfig().getMessage("no-permission"));
+            player.sendMessage(plugin.getShopConfig().getComponent("no-permission"));
             return true;
         }
 
@@ -42,7 +44,7 @@ public class ShopCommand implements CommandExecutor, TabCompleter {
             if (category != null) {
                 new dev.user.shop.gui.ShopItemsGUI(plugin, player, category).open();
             } else {
-                player.sendMessage("§c分类不存在: " + categoryId);
+                player.sendMessage(Component.text("分类不存在: " + categoryId).color(NamedTextColor.RED));
             }
         } else {
             new ShopCategoryGUI(plugin, player).open();

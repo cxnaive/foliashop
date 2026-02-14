@@ -4,6 +4,8 @@ import dev.user.shop.FoliaShopPlugin;
 import dev.user.shop.gacha.GachaBlockBinding;
 import dev.user.shop.gui.MainMenuGUI;
 import dev.user.shop.gui.ShopAdminGUI;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.FluidCollisionMode;
 import org.bukkit.block.Block;
 import org.bukkit.command.Command;
@@ -29,12 +31,12 @@ public class FoliaShopCommand implements CommandExecutor, TabCompleter {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (args.length == 0) {
             if (!(sender instanceof Player player)) {
-                sender.sendMessage("§c此命令只能由玩家执行。");
+                sender.sendMessage(Component.text("此命令只能由玩家执行。").color(NamedTextColor.RED));
                 return true;
             }
 
             if (!player.hasPermission("foliashop.use")) {
-                player.sendMessage(plugin.getShopConfig().getMessage("no-permission"));
+                player.sendMessage(plugin.getShopConfig().getComponent("no-permission"));
                 return true;
             }
 
@@ -47,56 +49,56 @@ public class FoliaShopCommand implements CommandExecutor, TabCompleter {
         switch (subCommand) {
             case "reload" -> {
                 if (!sender.hasPermission("foliashop.admin")) {
-                    sender.sendMessage(plugin.getShopConfig().getMessage("no-permission"));
+                    sender.sendMessage(plugin.getShopConfig().getComponent("no-permission"));
                     return true;
                 }
                 plugin.reload();
-                sender.sendMessage(plugin.getShopConfig().getMessage("config-reloaded"));
+                sender.sendMessage(plugin.getShopConfig().getComponent("config-reloaded"));
             }
             case "shop" -> {
                 if (!(sender instanceof Player player)) {
-                    sender.sendMessage("§c此命令只能由玩家执行。");
+                    sender.sendMessage(Component.text("此命令只能由玩家执行。").color(NamedTextColor.RED));
                     return true;
                 }
                 if (!plugin.getShopConfig().isShopEnabled()) {
-                    player.sendMessage(plugin.getShopConfig().getMessage("feature-disabled"));
+                    player.sendMessage(plugin.getShopConfig().getComponent("feature-disabled"));
                     return true;
                 }
                 if (!player.hasPermission("foliashop.shop.use")) {
-                    player.sendMessage(plugin.getShopConfig().getMessage("no-permission"));
+                    player.sendMessage(plugin.getShopConfig().getComponent("no-permission"));
                     return true;
                 }
                 new dev.user.shop.gui.ShopCategoryGUI(plugin, player).open();
             }
             case "gacha" -> {
                 if (!(sender instanceof Player player)) {
-                    sender.sendMessage("§c此命令只能由玩家执行。");
+                    sender.sendMessage(Component.text("此命令只能由玩家执行。").color(NamedTextColor.RED));
                     return true;
                 }
                 if (!plugin.getShopConfig().isGachaEnabled()) {
-                    player.sendMessage(plugin.getShopConfig().getMessage("feature-disabled"));
+                    player.sendMessage(plugin.getShopConfig().getComponent("feature-disabled"));
                     return true;
                 }
                 if (!player.hasPermission("foliashop.gacha.use")) {
-                    player.sendMessage(plugin.getShopConfig().getMessage("no-permission"));
+                    player.sendMessage(plugin.getShopConfig().getComponent("no-permission"));
                     return true;
                 }
                 new dev.user.shop.gui.GachaMainGUI(plugin, player).open();
             }
             case "admin" -> {
                 if (!(sender instanceof Player player)) {
-                    sender.sendMessage("§c此命令只能由玩家执行。");
+                    sender.sendMessage(Component.text("此命令只能由玩家执行。").color(NamedTextColor.RED));
                     return true;
                 }
                 if (!player.hasPermission("foliashop.admin")) {
-                    player.sendMessage(plugin.getShopConfig().getMessage("no-permission"));
+                    player.sendMessage(plugin.getShopConfig().getComponent("no-permission"));
                     return true;
                 }
                 new ShopAdminGUI(plugin, player).open();
             }
             case "reset" -> {
                 if (!sender.hasPermission("foliashop.admin")) {
-                    sender.sendMessage(plugin.getShopConfig().getMessage("no-permission"));
+                    sender.sendMessage(plugin.getShopConfig().getComponent("no-permission"));
                     return true;
                 }
                 plugin.getShopManager().reloadFromConfig();
@@ -104,50 +106,50 @@ public class FoliaShopCommand implements CommandExecutor, TabCompleter {
             }
             case "clean" -> {
                 if (!sender.hasPermission("foliashop.admin")) {
-                    sender.sendMessage(plugin.getShopConfig().getMessage("no-permission"));
+                    sender.sendMessage(plugin.getShopConfig().getComponent("no-permission"));
                     return true;
                 }
                 handleCleanCommand(sender, args);
             }
             case "bindblock" -> {
                 if (!(sender instanceof Player player)) {
-                    sender.sendMessage("§c此命令只能由玩家执行。");
+                    sender.sendMessage(Component.text("此命令只能由玩家执行。").color(NamedTextColor.RED));
                     return true;
                 }
                 if (!player.hasPermission("foliashop.admin")) {
-                    player.sendMessage(plugin.getShopConfig().getMessage("no-permission"));
+                    player.sendMessage(plugin.getShopConfig().getComponent("no-permission"));
                     return true;
                 }
                 handleBindBlockCommand(player, args);
             }
             case "unbindblock" -> {
                 if (!(sender instanceof Player player)) {
-                    sender.sendMessage("§c此命令只能由玩家执行。");
+                    sender.sendMessage(Component.text("此命令只能由玩家执行。").color(NamedTextColor.RED));
                     return true;
                 }
                 if (!player.hasPermission("foliashop.admin")) {
-                    player.sendMessage(plugin.getShopConfig().getMessage("no-permission"));
+                    player.sendMessage(plugin.getShopConfig().getComponent("no-permission"));
                     return true;
                 }
                 handleUnbindBlockCommand(player);
             }
             case "listblocks" -> {
                 if (!sender.hasPermission("foliashop.admin")) {
-                    sender.sendMessage(plugin.getShopConfig().getMessage("no-permission"));
+                    sender.sendMessage(plugin.getShopConfig().getComponent("no-permission"));
                     return true;
                 }
                 handleListBlocksCommand(sender, args);
             }
             case "exportshop" -> {
                 if (!sender.hasPermission("foliashop.admin")) {
-                    sender.sendMessage(plugin.getShopConfig().getMessage("no-permission"));
+                    sender.sendMessage(plugin.getShopConfig().getComponent("no-permission"));
                     return true;
                 }
                 handleExportShopCommand(sender);
             }
             case "stats" -> {
                 if (!sender.hasPermission("foliashop.admin")) {
-                    sender.sendMessage(plugin.getShopConfig().getMessage("no-permission"));
+                    sender.sendMessage(plugin.getShopConfig().getComponent("no-permission"));
                     return true;
                 }
                 handleStatsCommand(sender, args);

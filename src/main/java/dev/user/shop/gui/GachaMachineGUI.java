@@ -3,6 +3,7 @@ package dev.user.shop.gui;
 import dev.user.shop.FoliaShopPlugin;
 import dev.user.shop.gacha.GachaMachine;
 import dev.user.shop.util.ItemUtil;
+import dev.user.shop.util.MessageUtil;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -15,7 +16,7 @@ public class GachaMachineGUI extends AbstractGUI {
     private final GachaMachine machine;
 
     public GachaMachineGUI(FoliaShopPlugin plugin, Player player, GachaMachine machine) {
-        super(plugin, player, plugin.getShopConfig().convertMiniMessage(machine.getName()), 27);
+        super(plugin, player, MessageUtil.convertMiniMessageToLegacy(machine.getName()), 27);
         this.machine = machine;
     }
 
@@ -25,12 +26,12 @@ public class GachaMachineGUI extends AbstractGUI {
 
         // 扭蛋机图标
         ItemStack icon = machine.createIconItem(plugin);
-        ItemUtil.setDisplayName(icon, plugin.getShopConfig().convertMiniMessage(machine.getName()));
+        ItemUtil.setDisplayName(icon, MessageUtil.convertMiniMessageToLegacy(machine.getName()));
 
         // 添加 description 到 lore
         List<String> iconLore = new ArrayList<>();
         for (String desc : machine.getDescription()) {
-            iconLore.add(plugin.getShopConfig().convertMiniMessage(desc));
+            iconLore.add(MessageUtil.convertMiniMessageToLegacy(desc));
         }
         ItemUtil.setLore(icon, iconLore);
 
@@ -138,7 +139,7 @@ public class GachaMachineGUI extends AbstractGUI {
     private void executeGachaWithPayment(Player player, double cost, Runnable onSuccess) {
         plugin.getEconomyManager().hasEnoughAsync(player, cost, hasEnough -> {
             if (!hasEnough) {
-                player.sendMessage(plugin.getShopConfig().getMessage("insufficient-funds",
+                player.sendMessage(plugin.getShopConfig().getComponent("insufficient-funds",
                     java.util.Map.of("cost", String.format("%.2f", cost),
                                     "currency", plugin.getShopConfig().getCurrencyName())));
                 return;
@@ -149,7 +150,7 @@ public class GachaMachineGUI extends AbstractGUI {
 
             plugin.getEconomyManager().withdrawAsync(player, cost, success -> {
                 if (!success) {
-                    player.sendMessage(plugin.getShopConfig().getMessage("insufficient-funds",
+                    player.sendMessage(plugin.getShopConfig().getComponent("insufficient-funds",
                         java.util.Map.of("cost", String.format("%.2f", cost),
                                         "currency", plugin.getShopConfig().getCurrencyName())));
                     return;

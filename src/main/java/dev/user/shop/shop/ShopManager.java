@@ -173,23 +173,35 @@ public class ShopManager {
 
             double buyPrice = itemSection.getDouble("buy-price", 0);
             double sellPrice = itemSection.getDouble("sell-price", 0);
+            int buyPoints = itemSection.getInt("buy-points", 0);
             int stock = itemSection.getInt("stock", -1);
             String category = itemSection.getString("category", "misc");
             int slot = itemSection.getInt("slot", 0);
             int dailyLimit = itemSection.getInt("daily-limit", 0);
+            int playerLimit = itemSection.getInt("player-limit", 0);
 
             // 加载 NBT 组件配置
             Map<String, String> components = ItemUtil.parseComponents(itemSection.get("components"));
+
+            // 加载命令和条件
+            java.util.List<String> commands = itemSection.getStringList("commands");
+            java.util.List<String> conditions = itemSection.getStringList("conditions");
+            boolean giveItem = itemSection.getBoolean("give-item", true);
 
             ShopItem existingItem = items.get(id);
             if (existingItem != null) {
                 // 已有商品：更新配置（保留数据库中的库存）
                 existingItem.setBuyPrice(buyPrice);
                 existingItem.setSellPrice(sellPrice);
+                existingItem.setBuyPoints(buyPoints);
                 existingItem.setCategory(category);
                 existingItem.setSlot(slot);
                 existingItem.setDailyLimit(dailyLimit);
+                existingItem.setPlayerLimit(playerLimit);
                 existingItem.setComponents(components);
+                existingItem.setCommands(commands);
+                existingItem.setConditions(conditions);
+                existingItem.setGiveItem(giveItem);
                 // 库存保留数据库值，不覆盖
                 // 更新显示物品（可能配置改了itemKey）
                 ItemStack item = ItemUtil.createItemFromKey(plugin, itemKey);
@@ -205,7 +217,11 @@ public class ShopManager {
                 updatedCount++;
             } else {
                 // 新商品：创建并保存
-                ShopItem shopItem = new ShopItem(id, itemKey, buyPrice, sellPrice, stock, category, slot, dailyLimit, components);
+                ShopItem shopItem = new ShopItem(id, itemKey, buyPrice, sellPrice, buyPoints, stock, category, slot, dailyLimit, components);
+                shopItem.setPlayerLimit(playerLimit);
+                shopItem.setCommands(commands);
+                shopItem.setConditions(conditions);
+                shopItem.setGiveItem(giveItem);
                 ItemStack item = ItemUtil.createItemFromKey(plugin, itemKey);
                 if (item != null) {
                     // 应用 NBT 组件
@@ -238,11 +254,16 @@ public class ShopManager {
                         rs.getString("item_key"),
                         rs.getDouble("buy_price"),
                         rs.getDouble("sell_price"),
+                        rs.getInt("buy_points"),
                         rs.getInt("stock"),
                         rs.getString("category"),
                         rs.getInt("slot"),
                         rs.getInt("daily_limit"),
-                        rs.getString("components")
+                        rs.getInt("player_limit"),
+                        rs.getString("components"),
+                        rs.getString("commands"),
+                        rs.getString("conditions"),
+                        rs.getBoolean("give_item")
                     });
                 }
             }
@@ -255,15 +276,26 @@ public class ShopManager {
                 String itemKey = (String) data[1];
                 double buyPrice = (Double) data[2];
                 double sellPrice = (Double) data[3];
-                int stock = (Integer) data[4];
-                String category = (String) data[5];
-                int slot = (Integer) data[6];
-                int dailyLimit = (Integer) data[7];
+                int buyPoints = (Integer) data[4];
+                int stock = (Integer) data[5];
+                String category = (String) data[6];
+                int slot = (Integer) data[7];
+                int dailyLimit = (Integer) data[8];
+                int playerLimit = data.length > 9 && data[9] != null ? (Integer) data[9] : 0;
                 @SuppressWarnings("unchecked")
-                Map<String, String> components = data.length > 8 && data[8] != null ?
-                    parseComponentsFromJson((String) data[8]) : new HashMap<>();
+                Map<String, String> components = data.length > 10 && data[10] != null ?
+                    parseComponentsFromJson((String) data[10]) : new HashMap<>();
+                java.util.List<String> commands = data.length > 11 && data[11] != null ?
+                    parseListFromJson((String) data[11]) : new java.util.ArrayList<>();
+                java.util.List<String> conditions = data.length > 12 && data[12] != null ?
+                    parseListFromJson((String) data[12]) : new java.util.ArrayList<>();
+                boolean giveItem = data.length > 13 ? (Boolean) data[13] : true;
 
-                ShopItem shopItem = new ShopItem(id, itemKey, buyPrice, sellPrice, stock, category, slot, dailyLimit, components);
+                ShopItem shopItem = new ShopItem(id, itemKey, buyPrice, sellPrice, buyPoints, stock, category, slot, dailyLimit, components);
+                shopItem.setPlayerLimit(playerLimit);
+                shopItem.setCommands(commands);
+                shopItem.setConditions(conditions);
+                shopItem.setGiveItem(giveItem);
                 ItemStack item = ItemUtil.createItemFromKey(plugin, itemKey);
                 if (item != null) {
                     // 应用 NBT 组件
@@ -334,19 +366,21 @@ public class ShopManager {
         plugin.getDatabaseQueue().submit("saveShopItem", conn -> {
             boolean isMySQL = plugin.getDatabaseManager().isMySQL();
 
-            // 将 components 转换为 JSON 字符串
+            // 将集合转换为 JSON 字符串
             String componentsJson = item.hasComponents() ? componentsToJson(item.getComponents()) : null;
+            String commandsJson = item.hasCommands() ? listToJson(item.getCommands()) : null;
+            String conditionsJson = item.hasConditions() ? listToJson(item.getConditions()) : null;
 
             String sql;
             if (isMySQL) {
                 // MySQL/MariaDB 语法
-                sql = "INSERT INTO shop_items (id, item_key, buy_price, sell_price, stock, category, slot, enabled, daily_limit, components) " +
-                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
-                      "ON DUPLICATE KEY UPDATE item_key=?, buy_price=?, sell_price=?, stock=?, category=?, slot=?, enabled=?, daily_limit=?, components=?";
+                sql = "INSERT INTO shop_items (id, item_key, buy_price, sell_price, buy_points, stock, category, slot, enabled, daily_limit, player_limit, components, commands, conditions, give_item) " +
+                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
+                      "ON DUPLICATE KEY UPDATE item_key=?, buy_price=?, sell_price=?, buy_points=?, stock=?, category=?, slot=?, enabled=?, daily_limit=?, player_limit=?, components=?, commands=?, conditions=?, give_item=?";
             } else {
                 // H2 语法
-                sql = "MERGE INTO shop_items (id, item_key, buy_price, sell_price, stock, category, slot, enabled, daily_limit, components) " +
-                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                sql = "MERGE INTO shop_items (id, item_key, buy_price, sell_price, buy_points, stock, category, slot, enabled, daily_limit, player_limit, components, commands, conditions, give_item) " +
+                      "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             }
 
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -354,23 +388,33 @@ public class ShopManager {
                 ps.setString(2, item.getItemKey());
                 ps.setDouble(3, item.getBuyPrice());
                 ps.setDouble(4, item.getSellPrice());
-                ps.setInt(5, item.getStock());
-                ps.setString(6, item.getCategory());
-                ps.setInt(7, item.getSlot());
-                ps.setBoolean(8, item.isEnabled());
-                ps.setInt(9, item.getDailyLimit());
-                ps.setString(10, componentsJson);
+                ps.setInt(5, item.getBuyPoints());
+                ps.setInt(6, item.getStock());
+                ps.setString(7, item.getCategory());
+                ps.setInt(8, item.getSlot());
+                ps.setBoolean(9, item.isEnabled());
+                ps.setInt(10, item.getDailyLimit());
+                ps.setInt(11, item.getPlayerLimit());
+                ps.setString(12, componentsJson);
+                ps.setString(13, commandsJson);
+                ps.setString(14, conditionsJson);
+                ps.setBoolean(15, item.isGiveItem());
 
                 if (isMySQL) {
-                    ps.setString(11, item.getItemKey());
-                    ps.setDouble(12, item.getBuyPrice());
-                    ps.setDouble(13, item.getSellPrice());
-                    ps.setInt(14, item.getStock());
-                    ps.setString(15, item.getCategory());
-                    ps.setInt(16, item.getSlot());
-                    ps.setBoolean(17, item.isEnabled());
-                    ps.setInt(18, item.getDailyLimit());
-                    ps.setString(19, componentsJson);
+                    ps.setString(16, item.getItemKey());
+                    ps.setDouble(17, item.getBuyPrice());
+                    ps.setDouble(18, item.getSellPrice());
+                    ps.setInt(19, item.getBuyPoints());
+                    ps.setInt(20, item.getStock());
+                    ps.setString(21, item.getCategory());
+                    ps.setInt(22, item.getSlot());
+                    ps.setBoolean(23, item.isEnabled());
+                    ps.setInt(24, item.getDailyLimit());
+                    ps.setInt(25, item.getPlayerLimit());
+                    ps.setString(26, componentsJson);
+                    ps.setString(27, commandsJson);
+                    ps.setString(28, conditionsJson);
+                    ps.setBoolean(29, item.isGiveItem());
                 }
 
                 ps.executeUpdate();
@@ -535,10 +579,12 @@ public class ShopManager {
 
         double buyPrice = itemSection.getDouble("buy-price", 0);
         double sellPrice = itemSection.getDouble("sell-price", 0);
+        int buyPoints = itemSection.getInt("buy-points", 0);
         int stock = itemSection.getInt("stock", -1);
         String category = itemSection.getString("category", "misc");
         int slot = itemSection.getInt("slot", 0);
         int dailyLimit = itemSection.getInt("daily-limit", 0);
+        int playerLimit = itemSection.getInt("player-limit", 0);
 
         // 移除旧的物品
         items.remove(id);
@@ -546,8 +592,17 @@ public class ShopManager {
         // 加载 NBT 组件配置
         Map<String, String> components = ItemUtil.parseComponents(itemSection.get("components"));
 
+        // 加载命令和条件
+        java.util.List<String> commands = itemSection.getStringList("commands");
+        java.util.List<String> conditions = itemSection.getStringList("conditions");
+        boolean giveItem = itemSection.getBoolean("give-item", true);
+
         // 创建新物品
-        ShopItem shopItem = new ShopItem(id, itemKey, buyPrice, sellPrice, stock, category, slot, dailyLimit, components);
+        ShopItem shopItem = new ShopItem(id, itemKey, buyPrice, sellPrice, buyPoints, stock, category, slot, dailyLimit, components);
+        shopItem.setPlayerLimit(playerLimit);
+        shopItem.setCommands(commands);
+        shopItem.setConditions(conditions);
+        shopItem.setGiveItem(giveItem);
         ItemStack item = ItemUtil.createItemFromKey(plugin, itemKey);
         if (item != null) {
             shopItem.setDisplayItem(item);
@@ -725,6 +780,126 @@ public class ShopManager {
 
     private String getTodayString() {
         return java.time.LocalDate.now().toString();
+    }
+
+    /**
+     * 检查玩家的终身购买限额
+     * @param playerUuid 玩家UUID
+     * @param itemId 物品ID
+     * @param playerLimit 限制数量（0表示无限制）
+     * @param callback 回调函数，参数为剩余可购买数量（-1表示无限制，0表示已达上限）
+     */
+    public void checkPlayerLimit(UUID playerUuid, String itemId, int playerLimit,
+                                  java.util.function.Consumer<Integer> callback) {
+        // 无限制直接返回 -1
+        if (playerLimit <= 0) {
+            callback.accept(-1);
+            return;
+        }
+
+        plugin.getDatabaseQueue().submit("checkPlayerLimit", conn -> {
+            String sql = "SELECT buy_count FROM player_item_limits WHERE player_uuid = ? AND item_id = ?";
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, playerUuid.toString());
+                ps.setString(2, itemId);
+                ResultSet rs = ps.executeQuery();
+                if (rs.next()) {
+                    int currentCount = rs.getInt("buy_count");
+                    return Math.max(0, playerLimit - currentCount);
+                } else {
+                    // 无记录，返回完整限额
+                    return playerLimit;
+                }
+            }
+        }, callback, error -> {
+            plugin.getLogger().warning("检查玩家购买限额失败: " + error.getMessage());
+            callback.accept(0); // 出错时保守返回0
+        });
+    }
+
+    /**
+     * 增加玩家的终身购买计数
+     * @param playerUuid 玩家UUID
+     * @param itemId 物品ID
+     * @param amount 增加数量
+     * @param callback 回调函数，参数为是否成功（可选）
+     */
+    public void incrementPlayerLimit(UUID playerUuid, String itemId, int amount,
+                                     java.util.function.Consumer<Boolean> callback) {
+        plugin.getDatabaseQueue().submit("incrementPlayerLimit", conn -> {
+            boolean isMySQL = plugin.getDatabaseManager().isMySQL();
+            String sql;
+            if (isMySQL) {
+                sql = "INSERT INTO player_item_limits (player_uuid, item_id, buy_count) VALUES (?, ?, ?) " +
+                      "ON DUPLICATE KEY UPDATE buy_count = buy_count + ?";
+            } else {
+                sql = "MERGE INTO player_item_limits KEY(player_uuid, item_id) VALUES (?, ?, buy_count + ?)";
+            }
+
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setString(1, playerUuid.toString());
+                ps.setString(2, itemId);
+                if (isMySQL) {
+                    ps.setInt(3, amount);
+                    ps.setInt(4, amount);
+                } else {
+                    ps.setInt(3, amount);
+                }
+                ps.executeUpdate();
+                return true;
+            }
+        }, success -> {
+            if (callback != null) callback.accept(true);
+        }, error -> {
+            plugin.getLogger().warning("增加玩家购买计数失败: " + error.getMessage());
+            if (callback != null) callback.accept(false);
+        });
+    }
+
+    /**
+     * 重置玩家的终身购买限额（管理命令用）
+     * @param playerUuid 玩家UUID（null表示重置所有玩家）
+     * @param itemId 物品ID（null表示重置所有物品）
+     * @param callback 回调函数，参数为影响的记录数
+     */
+    public void resetPlayerLimit(UUID playerUuid, String itemId,
+                                  java.util.function.Consumer<Integer> callback) {
+        plugin.getDatabaseQueue().submit("resetPlayerLimit", conn -> {
+            String sql;
+            PreparedStatement ps;
+
+            if (playerUuid != null && itemId != null) {
+                // 重置特定玩家特定物品
+                sql = "DELETE FROM player_item_limits WHERE player_uuid = ? AND item_id = ?";
+                ps = conn.prepareStatement(sql);
+                ps.setString(1, playerUuid.toString());
+                ps.setString(2, itemId);
+            } else if (playerUuid != null) {
+                // 重置特定玩家所有物品
+                sql = "DELETE FROM player_item_limits WHERE player_uuid = ?";
+                ps = conn.prepareStatement(sql);
+                ps.setString(1, playerUuid.toString());
+            } else if (itemId != null) {
+                // 重置所有玩家特定物品
+                sql = "DELETE FROM player_item_limits WHERE item_id = ?";
+                ps = conn.prepareStatement(sql);
+                ps.setString(1, itemId);
+            } else {
+                // 重置所有记录（危险操作）
+                sql = "DELETE FROM player_item_limits";
+                ps = conn.prepareStatement(sql);
+            }
+
+            try {
+                int affected = ps.executeUpdate();
+                return affected;
+            } finally {
+                ps.close();
+            }
+        }, callback, error -> {
+            plugin.getLogger().warning("重置玩家购买限额失败: " + error.getMessage());
+            callback.accept(0);
+        });
     }
 
     /**
@@ -1004,6 +1179,34 @@ public class ShopManager {
             return GSON.fromJson(json, new TypeToken<Map<String, String>>() {}.getType());
         } catch (Exception e) {
             return new HashMap<>();
+        }
+    }
+
+    /**
+     * 将 List 转换为 JSON 字符串
+     */
+    private String listToJson(java.util.List<String> list) {
+        if (list == null || list.isEmpty()) {
+            return null;
+        }
+        try {
+            return GSON.toJson(list);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * 从 JSON 字符串解析 List
+     */
+    private java.util.List<String> parseListFromJson(String json) {
+        if (json == null || json.isEmpty()) {
+            return new java.util.ArrayList<>();
+        }
+        try {
+            return GSON.fromJson(json, new TypeToken<java.util.List<String>>() {}.getType());
+        } catch (Exception e) {
+            return new java.util.ArrayList<>();
         }
     }
 }

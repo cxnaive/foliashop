@@ -2,9 +2,9 @@
 # FoliaShop - 系统商店与扭蛋插件
 # =============================
 # 作者: FoliaShop Team
-# 版本: 1.0.0
+# 版本: 1.0.3
 # 支持: Folia 1.20.1+
-# 依赖: XConomy (经济), CraftEngine (可选，用于自定义物品)
+# 依赖: XConomy (经济), CraftEngine (可选，用于自定义物品), PlayerPoints (可选，用于点券)
 
 # =============================
 # 数据库设置
@@ -39,6 +39,30 @@ economy:
   # 货币显示格式
   # 可用变量: {amount} = 金额, {currency} = 货币名称
   currency-format: "{amount} {currency}"
+
+# =============================
+# 点券系统设置 (PlayerPoints)
+# =============================
+# PlayerPoints 是软依赖，如未安装则点券功能不可用
+# 在 shop.yml 中为物品设置 buy-points 即可使用点券购买
+#
+# 示例 (shop.yml):
+#   items:
+#     vip_item:
+#       item: "minecraft:diamond"
+#       buy-price: 0          # 不需要金币
+#       buy-points: 100       # 需要 100 点券
+#       sell-price: 0         # 不可出售（出售不返点券）
+#       category: "special"
+#       slot: 10
+#
+#     hybrid_item:
+#       item: "minecraft:netherite_ingot"
+#       buy-price: 1000       # 需要 1000 金币
+#       buy-points: 50        # 同时需要 50 点券
+#       sell-price: 0
+#       category: "special"
+#       slot: 11
 
 # =============================
 # GUI界面设置
@@ -97,7 +121,10 @@ messages:
 
   # 商店相关
   insufficient-funds: "<red>余额不足！需要 <yellow>{cost} {currency}"
+  insufficient-points: "<red>点券不足！需要 <yellow>{points} <red>点券"
   purchase-success: "<green>✔ 成功购买 <white>{item} <yellow>x{amount}<green>，花费 <yellow>{cost} {currency}"
+  purchase-success-points: "<green>✔ 成功购买 <white>{item} <yellow>x{amount}<green>，花费 <yellow>{points} <green>点券"
+  purchase-success-mixed: "<green>✔ 成功购买 <white>{item} <yellow>x{amount}<green>，花费 <yellow>{cost} {currency} <green>+ <yellow>{points} <green>点券"
   sell-success: "<green>✔ 成功出售 <white>{item} <yellow>x{amount}<green>，获得 <yellow>{reward} {currency}"
   sell-success-batch: "<green>✔ 成功出售 <yellow>{count}<green> 种物品共 <yellow>{total}<green> 个，获得 <yellow>{reward} {currency}"
   inventory-full: "<red>✘ 背包已满，无法购买物品！"

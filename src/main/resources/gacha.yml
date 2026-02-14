@@ -38,6 +38,9 @@ display-entity:
   # 发光颜色（可选，格式: "RRGGBB" 或 "#RRGGBB"，不设置则使用默认白色）
   # 示例: "FF0000" = 红色, "00FF00" = 绿色, "0000FF" = 蓝色
   glow-color: null
+  # 解绑时清理范围（格，默认 2.0）
+  # 解绑方块时会删除Y轴 0 到 cleanup-range 范围内的所有 TextDisplay 实体
+  cleanup-range: 2.0
   # 粒子效果配置
   particle-effect:
     # 效果类型: NONE, STAR_RING, MAGIC_RUNE, RAINBOW_HALO, FLAME_AURA, FROST_CRYSTAL, LOVE_BUBBLE

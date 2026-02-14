@@ -5,6 +5,7 @@ import dev.user.shop.gacha.GachaMachine;
 import dev.user.shop.gacha.GachaManager;
 import dev.user.shop.gacha.GachaReward;
 import dev.user.shop.util.ItemUtil;
+import dev.user.shop.util.MessageUtil;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.Sound;
@@ -211,7 +212,7 @@ public class GachaTenResultGUI extends AbstractGUI {
                 drawCount = 0;
             }
 
-            Component broadcastComponent = ItemUtil.createBroadcastComponent(
+            Component broadcastComponent = MessageUtil.createGachaBroadcast(
                 broadcastTemplate, player.getName(), machine.getName(), itemName, drawCount);
             plugin.getServer().broadcast(broadcastComponent);
         }
@@ -237,7 +238,7 @@ public class GachaTenResultGUI extends AbstractGUI {
             // 异步检查余额并扣款
             plugin.getEconomyManager().hasEnoughAsync(player, totalCost, hasEnough -> {
                 if (!hasEnough) {
-                    player.sendMessage(plugin.getShopConfig().getMessage("insufficient-funds",
+                    player.sendMessage(plugin.getShopConfig().getComponent("insufficient-funds",
                         java.util.Map.of("cost", String.format("%.2f", totalCost),
                                         "currency", plugin.getShopConfig().getCurrencyName())));
                     return;
@@ -252,7 +253,7 @@ public class GachaTenResultGUI extends AbstractGUI {
                 // 异步扣除金钱
                 plugin.getEconomyManager().withdrawAsync(player, totalCost, success -> {
                     if (!success) {
-                        player.sendMessage(plugin.getShopConfig().getMessage("insufficient-funds",
+                        player.sendMessage(plugin.getShopConfig().getComponent("insufficient-funds",
                             java.util.Map.of("cost", String.format("%.2f", totalCost),
                                             "currency", plugin.getShopConfig().getCurrencyName())));
                         return;

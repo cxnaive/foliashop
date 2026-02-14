@@ -4,6 +4,8 @@ import dev.user.shop.FoliaShopPlugin;
 import dev.user.shop.gacha.GachaMachine;
 import dev.user.shop.gui.GachaMachineGUI;
 import dev.user.shop.gui.GachaMainGUI;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -24,17 +26,17 @@ public class GachaCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(plugin.getShopConfig().getMessage("player-only"));
+            sender.sendMessage(plugin.getShopConfig().getComponent("player-only"));
             return true;
         }
 
         if (!plugin.getShopConfig().isGachaEnabled()) {
-            player.sendMessage(plugin.getShopConfig().getMessage("feature-disabled"));
+            player.sendMessage(plugin.getShopConfig().getComponent("feature-disabled"));
             return true;
         }
 
         if (!player.hasPermission("foliashop.gacha.use")) {
-            player.sendMessage(plugin.getShopConfig().getMessage("no-permission"));
+            player.sendMessage(plugin.getShopConfig().getComponent("no-permission"));
             return true;
         }
 
@@ -44,11 +46,11 @@ public class GachaCommand implements CommandExecutor, TabCompleter {
             if (machine != null) {
                 new GachaMachineGUI(plugin, player, machine).open();
             } else {
-                player.sendMessage("§c扭蛋机不存在: " + machineId);
-                player.sendMessage("§e可用的扭蛋机: " + String.join(", ",
+                player.sendMessage(Component.text("扭蛋机不存在: " + machineId).color(NamedTextColor.RED));
+                player.sendMessage(Component.text("可用的扭蛋机: " + String.join(", ",
                     plugin.getGachaManager().getAllMachines().stream()
                         .map(GachaMachine::getId)
-                        .toList()));
+                        .toList())).color(NamedTextColor.YELLOW));
             }
         } else {
             new GachaMainGUI(plugin, player).open();

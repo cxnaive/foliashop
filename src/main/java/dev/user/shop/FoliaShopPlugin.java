@@ -7,6 +7,8 @@ import dev.user.shop.config.ShopConfig;
 import dev.user.shop.database.DatabaseManager;
 import dev.user.shop.database.DatabaseQueue;
 import dev.user.shop.economy.EconomyManager;
+import dev.user.shop.economy.PlayerPointsManager;
+import dev.user.shop.shop.PurchaseManager;
 import dev.user.shop.gacha.GachaBlockManager;
 import dev.user.shop.gacha.GachaDisplayManager;
 import dev.user.shop.gacha.GachaManager;
@@ -25,10 +27,12 @@ public class FoliaShopPlugin extends JavaPlugin {
     private DatabaseManager databaseManager;
     private DatabaseQueue databaseQueue;
     private EconomyManager economyManager;
+    private PlayerPointsManager playerPointsManager;
     private volatile ShopManager shopManager;
     private volatile GachaManager gachaManager;
     private volatile GachaBlockManager gachaBlockManager;
     private volatile GachaDisplayManager gachaDisplayManager;
+    private PurchaseManager purchaseManager;
 
     @Override
     public void onEnable() {
@@ -74,7 +78,12 @@ public class FoliaShopPlugin extends JavaPlugin {
         this.economyManager = new EconomyManager(this);
         economyManager.init();
 
-        
+        // 初始化 PlayerPoints 点数系统（软依赖）
+        this.playerPointsManager = new PlayerPointsManager(this);
+        playerPointsManager.init();
+
+        // 初始化购买事务管理器
+        this.purchaseManager = new PurchaseManager(this);
 
         // 延迟初始化商店和扭蛋管理器（等待 CraftEngine 注册物品）
         getServer().getGlobalRegionScheduler().runDelayed(this, t -> {
@@ -109,6 +118,11 @@ public class FoliaShopPlugin extends JavaPlugin {
     public void onDisable() {
         // 先关闭所有打开的GUI（包括取消扭蛋动画）
         GUIManager.closeAllGUIs();
+
+        // 关闭购买事务管理器
+        if (purchaseManager != null) {
+            purchaseManager.shutdown();
+        }
 
         // 关闭经济队列（等待所有任务完成）
         if (economyManager != null) {
@@ -218,5 +232,13 @@ public class FoliaShopPlugin extends JavaPlugin {
             this.gachaDisplayManager = new GachaDisplayManager(this);
         }
         return gachaDisplayManager;
+    }
+
+    public PlayerPointsManager getPlayerPointsManager() {
+        return playerPointsManager;
+    }
+
+    public PurchaseManager getPurchaseManager() {
+        return purchaseManager;
     }
 }

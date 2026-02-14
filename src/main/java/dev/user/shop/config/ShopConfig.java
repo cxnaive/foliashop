@@ -1,10 +1,13 @@
 package dev.user.shop.config;
 
 import dev.user.shop.FoliaShopPlugin;
+import dev.user.shop.util.MessageUtil;
+import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.inventory.ItemStack;
 
 import java.io.File;
 import java.util.*;
@@ -64,6 +67,7 @@ public class ShopConfig {
     private float displayEntityShadowStrength;
     private boolean displayEntityGlowing;
     private String displayEntityGlowColor;
+    private float displayEntityCleanupRange;
     private dev.user.shop.gacha.ParticleEffectConfig displayEntityParticleEffect;
 
     // GUI设置
@@ -238,6 +242,7 @@ public class ShopConfig {
         this.displayEntityShadowStrength = (float) getGachaDouble("display-entity.shadow-strength", 0.3);
         this.displayEntityGlowing = getGachaBoolean("display-entity.glowing", false);
         this.displayEntityGlowColor = getGachaString("display-entity.glow-color", null);
+        this.displayEntityCleanupRange = (float) getGachaDouble("display-entity.cleanup-range", 2.0);
         this.displayEntityParticleEffect = dev.user.shop.gacha.ParticleEffectConfig.fromConfig(
             getGachaSection("display-entity.particle-effect")
         );
@@ -323,6 +328,7 @@ public class ShopConfig {
     public float getDisplayEntityShadowStrength() { return displayEntityShadowStrength; }
     public boolean isDisplayEntityGlowing() { return displayEntityGlowing; }
     public String getDisplayEntityGlowColor() { return displayEntityGlowColor; }
+    public float getDisplayEntityCleanupRange() { return displayEntityCleanupRange; }
     public dev.user.shop.gacha.ParticleEffectConfig getDisplayEntityParticleEffect() { return displayEntityParticleEffect; }
 
     public String getGUITitle(String key) {
@@ -340,38 +346,11 @@ public class ShopConfig {
             case "transaction-history" -> "交易记录";
             default -> "菜单";
         });
-        return convertMiniMessage(title);
+        return MessageUtil.convertMiniMessageToLegacy(title);
     }
 
     public ItemConfig getGUIDecoration(String key) {
         return guiDecorations.get(key);
-    }
-
-    public String getMessage(String key) {
-        String msg = messages.get(key);
-        // 为某些消息提供默认值
-        if (msg == null) {
-            msg = switch (key) {
-                case "sell-success-batch" -> "<green>✔ 成功出售 <yellow>{count}</green> 种物品共 <yellow>{total}</yellow> 个，获得 <yellow>{reward} {currency}";
-                default -> "";
-            };
-        }
-        msg = msg.replace("<prefix>", messages.getOrDefault("prefix", ""));
-        return convertMiniMessage(msg);
-    }
-
-    public String getMessage(String key, Map<String, String> placeholders) {
-        // 先转换占位符值中的 MiniMessage 为 § 格式
-        Map<String, String> convertedPlaceholders = new HashMap<>();
-        for (Map.Entry<String, String> entry : placeholders.entrySet()) {
-            convertedPlaceholders.put(entry.getKey(), convertMiniMessage(entry.getValue()));
-        }
-
-        String msg = getMessage(key);
-        for (Map.Entry<String, String> entry : convertedPlaceholders.entrySet()) {
-            msg = msg.replace("{" + entry.getKey() + "}", entry.getValue());
-        }
-        return msg;
     }
 
     /**
@@ -387,36 +366,66 @@ public class ShopConfig {
         return msg.replace("<prefix>", messages.getOrDefault("prefix", ""));
     }
 
-    /**
-     * 将 MiniMessage 格式转换为传统 § 颜色代码
-     */
-    public String convertMiniMessage(String message) {
-        if (message == null) return "";
+    // ==================== Component API (New) ====================
 
-        // 简单替换常见的 MiniMessage 标签为传统颜色代码
-        return message
-            .replace("<black>", "§0").replace("</black>", "")
-            .replace("<dark_blue>", "§1").replace("</dark_blue>", "")
-            .replace("<dark_green>", "§2").replace("</dark_green>", "")
-            .replace("<dark_aqua>", "§3").replace("</dark_aqua>", "")
-            .replace("<dark_red>", "§4").replace("</dark_red>", "")
-            .replace("<dark_purple>", "§5").replace("</dark_purple>", "")
-            .replace("<gold>", "§6").replace("</gold>", "")
-            .replace("<gray>", "§7").replace("</gray>", "")
-            .replace("<dark_gray>", "§8").replace("</dark_gray>", "")
-            .replace("<blue>", "§9").replace("</blue>", "")
-            .replace("<green>", "§a").replace("</green>", "")
-            .replace("<aqua>", "§b").replace("</aqua>", "")
-            .replace("<red>", "§c").replace("</red>", "")
-            .replace("<light_purple>", "§d").replace("</light_purple>", "")
-            .replace("<yellow>", "§e").replace("</yellow>", "")
-            .replace("<white>", "§f").replace("</white>", "")
-            .replace("<bold>", "§l").replace("</bold>", "")
-            .replace("<italic>", "§o").replace("</italic>", "")
-            .replace("<underline>", "§n").replace("</underline>", "")
-            .replace("<strikethrough>", "§m").replace("</strikethrough>", "")
-            .replace("<obfuscated>", "§k").replace("</obfuscated>", "")
-            .replace("<reset>", "§r").replace("</reset>", "");
+    /**
+     * 获取 Component 格式的消息（推荐新方法）
+     * 支持 MiniMessage 解析和特殊占位符
+     *
+     * @param key 消息键
+     * @param placeholders 占位符数组
+     * @return Component 消息
+     */
+    public Component getComponent(String key, MessageUtil.Placeholder... placeholders) {
+        String template = getRawMessage(key);
+        if (template.isEmpty()) {
+            return Component.empty();
+        }
+        return MessageUtil.buildMessage(template, placeholders);
+    }
+
+    /**
+     * 获取带物品占位符的 Component 消息
+     * 用于 purchase-success, sell-success 等包含物品名称的消息
+     *
+     * @param key 消息键
+     * @param itemPlaceholder 物品占位符名称（如 "item"）
+     * @param item 物品（用于提取名称或翻译键）
+     * @param otherPlaceholders 其他普通占位符
+     * @return Component 消息
+     */
+    public Component getItemMessage(String key, String itemPlaceholder, ItemStack item,
+                                     Map<String, String> otherPlaceholders) {
+        String template = getRawMessage(key);
+        if (template.isEmpty()) {
+            return Component.empty();
+        }
+
+        // 构建占位符列表
+        java.util.List<MessageUtil.Placeholder> placeholders = new java.util.ArrayList<>();
+
+        // 添加物品占位符
+        placeholders.add(MessageUtil.Placeholder.item(itemPlaceholder, item));
+
+        // 添加其他占位符
+        if (otherPlaceholders != null) {
+            for (Map.Entry<String, String> entry : otherPlaceholders.entrySet()) {
+                placeholders.add(MessageUtil.Placeholder.text(entry.getKey(), entry.getValue()));
+            }
+        }
+
+        return MessageUtil.buildMessage(template, placeholders.toArray(new MessageUtil.Placeholder[0]));
+    }
+
+    /**
+     * 获取 Component 格式的消息（使用 Map 占位符，向后兼容）
+     */
+    public Component getComponent(String key, Map<String, String> placeholders) {
+        String template = getRawMessage(key);
+        if (template.isEmpty()) {
+            return Component.empty();
+        }
+        return MessageUtil.buildMessage(template, placeholders);
     }
 
     public ConfigurationSection getShopCategories() {

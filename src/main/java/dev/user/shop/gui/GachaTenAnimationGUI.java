@@ -78,7 +78,7 @@ public class GachaTenAnimationGUI extends AbstractGUI {
     }
 
     private void startAnimation() {
-        player.sendMessage(plugin.getShopConfig().getMessage("gacha-start"));
+        player.sendMessage(plugin.getShopConfig().getComponent("gacha-start"));
         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, SoundCategory.MASTER, 1.0f, 2.0f);
         slowdownStartTick = (int) (animationDuration * 0.6);
 

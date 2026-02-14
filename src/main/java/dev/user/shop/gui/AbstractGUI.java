@@ -2,6 +2,7 @@ package dev.user.shop.gui;
 
 import dev.user.shop.FoliaShopPlugin;
 import dev.user.shop.util.ItemUtil;
+import dev.user.shop.util.MessageUtil;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
@@ -105,7 +106,7 @@ public abstract class AbstractGUI implements InventoryHolder {
     protected void addCloseButton(int slot) {
         var decoration = plugin.getShopConfig().getGUIDecoration("close");
         ItemStack closeBtn = ItemUtil.createItemFromKey(plugin, decoration.getMaterial());
-        String name = decoration.getName().isEmpty() ? "§c关闭" : plugin.getShopConfig().convertMiniMessage(decoration.getName());
+        String name = decoration.getName().isEmpty() ? "§c关闭" : MessageUtil.convertMiniMessageToLegacy(decoration.getName());
         ItemUtil.setDisplayName(closeBtn, name);
         setItem(slot, closeBtn, p -> p.closeInventory());
     }
@@ -113,7 +114,7 @@ public abstract class AbstractGUI implements InventoryHolder {
     protected void addBackButton(int slot, Runnable onBack) {
         var decoration = plugin.getShopConfig().getGUIDecoration("back");
         ItemStack backBtn = ItemUtil.createItemFromKey(plugin, decoration.getMaterial());
-        String name = decoration.getName().isEmpty() ? "§e返回" : plugin.getShopConfig().convertMiniMessage(decoration.getName());
+        String name = decoration.getName().isEmpty() ? "§e返回" : MessageUtil.convertMiniMessageToLegacy(decoration.getName());
         ItemUtil.setDisplayName(backBtn, name);
         setItem(slot, backBtn, p -> onBack.run());
     }

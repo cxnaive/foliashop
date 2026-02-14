@@ -6,6 +6,7 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.TextDisplay;
 import org.bukkit.util.BlockVector;
 
 import java.sql.Connection;
@@ -213,18 +214,37 @@ public class GachaBlockManager {
                     return false;
                 }
             }, success -> {
-                // 调度到区域线程移除展示实体
+                // 调度到区域线程移除展示实体（范围删除 Y 轴 0-2 格内所有 TextDisplay）
                 World world = Bukkit.getWorld(binding.getWorldUuid());
                 if (world != null) {
-                    float heightOffset = plugin.getShopConfig().getDisplayEntityHeightOffset();
-                    Location location = new Location(
+                    Location baseLoc = new Location(
                         world,
                         binding.getPosition().getBlockX() + 0.5,
-                        binding.getPosition().getBlockY() + heightOffset,
+                        binding.getPosition().getBlockY(),
                         binding.getPosition().getBlockZ() + 0.5
                     );
-                    plugin.getServer().getRegionScheduler().execute(plugin, location, () -> {
+                    float cleanupRange = plugin.getShopConfig().getDisplayEntityCleanupRange();
+                    double minY = baseLoc.getY();
+                    double maxY = baseLoc.getY() + cleanupRange;
+                    double centerX = baseLoc.getX();
+                    double centerZ = baseLoc.getZ();
+
+                    plugin.getServer().getRegionScheduler().execute(plugin, baseLoc, () -> {
+                        // 1. 先清理绑定的 ItemDisplay（从内存和数据库中移除）
                         plugin.getGachaDisplayManager().removeDisplay(binding);
+
+                        // 2. 再清理范围内的所有 TextDisplay（其他展示实体）
+                        for (TextDisplay display : world.getEntitiesByClass(TextDisplay.class)) {
+                            Location loc = display.getLocation();
+                            // Y轴范围判断
+                            if (loc.getY() >= minY && loc.getY() <= maxY) {
+                                // X/Z 范围限制（确保是同一方块区域）
+                                if (Math.abs(loc.getX() - centerX) < 1.0 &&
+                                    Math.abs(loc.getZ() - centerZ) < 1.0) {
+                                    display.remove();
+                                }
+                            }
+                        }
                     });
                 }
                 callback.accept(new BindResult(true, existingMachine));

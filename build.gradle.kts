@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "dev.user"
-version = "1.0.2"
+version = "1.0.3"
 
 repositories {
     mavenCentral()
@@ -13,6 +13,7 @@ repositories {
     maven("https://jitpack.io")
     maven("https://repo.codemc.io/repository/maven-public/")
     maven("https://repo.momirealms.net/releases/")
+    maven("https://repo.rosewooddev.io/repository/public/")
     gradlePluginPortal()
 }
 
@@ -28,6 +29,9 @@ dependencies {
 
     // NBT API
     compileOnly("de.tr7zw:item-nbt-api-plugin:2.15.5")
+
+    // PlayerPoints
+    compileOnly("org.black_ixx:playerpoints:3.3.3")
 
     // 数据库连接池和驱动
     implementation("com.zaxxer:HikariCP:6.2.1")

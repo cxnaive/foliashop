@@ -77,13 +77,24 @@ categories:
 # =============================
 # 配置说明:
 # - item: 物品ID，支持 "minecraft:xxx" 或 "ce_namespace:item_id"
-# - buy-price: 购买价格，0或负数表示不可购买
-# - sell-price: 出售价格，0或负数表示不可出售
+# - buy-price: 购买价格（金币），0或负数表示不需要金币
+# - buy-points: 购买所需点券（PlayerPoints），0表示不需要点券
+# - sell-price: 出售价格（金币），0或负数表示不可出售（出售不会返还点券）
 # - stock: 库存数量，-1表示无限库存
 # - category: 所属分类ID
 # - slot: 在分类GUI中的位置
-# - daily-limit: 每日购买限额，0表示无限制
+# - daily-limit: 每日购买限额，0表示无限制（每日重置）
+# - player-limit: 每个玩家终身购买限额，0表示无限制（永久累计）
 # - components: 附加NBT组件（可选），格式: "path+value"
+# - give-item: 是否给予物品（可选，默认true），设为false时只执行命令
+# - commands: 购买后执行的命令列表（可选），在控制台执行，{player}替换为玩家名
+# - conditions: 购买条件列表（可选），支持 !permission:xxx（没有权限才能买）
+#
+# 注意：
+# 1. buy-price 和 buy-points 可以同时设置，购买时会同时扣除金币和点券
+# 2. commands 可用于出售 VIP 权限、称号等非物品商品
+# 3. give-item: false 时，商品只执行命令不给予物品（适合纯命令商品）
+# 4. daily-limit 和 player-limit 可同时设置，玩家需要同时满足两个限制才能购买
 #
 # NBT组件示例:
 #   components:
@@ -140,10 +151,11 @@ items:
     category: "tools"
     slot: 10
 
-  # 带NBT的示例：附魔铁剑
+  # 带NBT的示例：附魔铁剑（金币+点券混合购买）
   enchanted_iron_sword:
     item: "minecraft:iron_sword"
     buy-price: 500.0
+    buy-points: 100
     sell-price: 0
     stock: -1
     category: "tools"
@@ -155,11 +167,64 @@ items:
       # 设置自定义名称
       - "minecraft:custom_name+\"§6§l传说铁剑\""
       # 设置Lore
-      - "minecraft:lore+[\"§7商店限定版\",\"§7每日限购1把\"]"
+      - "minecraft:lore+[\"§7商店限定版\",\"§7每日限购1把\",\"§c需要 100 点券\"]"
       # 设置不可破坏
       - "minecraft:unbreakable+{}"
       # 设置自定义数据
       - "minecraft:custom_data+{shop_special:true,version:1b}"
+
+  # 纯点券购买示例
+  vip_token:
+    item: "minecraft:emerald"
+    buy-price: 0
+    buy-points: 500
+    sell-price: 0
+    stock: -1
+    category: "tools"
+    slot: 13
+    daily-limit: 1
+    components:
+      # 设置自定义名称
+      - "minecraft:custom_name+\"§a§lVIP令牌\""
+      # 设置Lore
+      - "minecraft:lore+[\"§7使用 500 点券购买\",\"§7不可出售\"]"
+
+  # 命令执行商品示例（VIP权限）
+  vip_rank:
+    item: "minecraft:diamond_block"
+    buy-price: 10000
+    buy-points: 1000
+    sell-price: 0
+    stock: 10              # 全服限量10个
+    category: "tools"
+    slot: 15
+    daily-limit: 0         # 不限每日购买（用player-limit控制）
+    player-limit: 1        # 每个玩家终身只能购买1次
+    give-item: false       # 不给予物品，只执行命令
+    commands:              # 购买后执行的命令（控制台执行，{player}替换为玩家名）
+      - "say 恭喜 {player} 购买了VIP！"
+      - "lp user {player} parent addtemp vip 30d"
+    conditions:            # 购买条件
+      - "!permission:group.vip"  # 已有VIP的玩家不能购买
+    components:
+      - "minecraft:custom_name+\"§6§lVIP特权（30天）\""
+      - "minecraft:lore+[\"§7购买后自动获得VIP权限\",\"§7有效期30天\",\"§7全服限量10个\",\"§7每人限购1次\"]"
+
+  # 混合商品示例（给物品+执行命令）
+  welcome_kit:
+    item: "minecraft:chest"
+    buy-price: 100
+    sell-price: 0
+    stock: -1
+    category: "tools"
+    slot: 16
+    give-item: true        # 给予物品
+    commands:              # 同时执行命令
+      - "say {player} 购买了新手礼包！"
+      - "effect give {player} minecraft:regeneration 30"
+    components:
+      - "minecraft:custom_name+\"§a§l新手礼包\""
+      - "minecraft:lore+[\"§7包含基础装备\",\"§7赠送30秒恢复效果\"]"
 
   iron_sword:
     item: "minecraft:iron_sword"
@@ -167,7 +232,7 @@ items:
     sell-price: 50.0
     stock: -1
     category: "tools"
-    slot: 12
+    slot: 14
 
   # 食物补给
   cooked_beef:

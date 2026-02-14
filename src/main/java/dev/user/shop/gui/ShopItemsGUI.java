@@ -4,12 +4,16 @@ import dev.user.shop.FoliaShopPlugin;
 import dev.user.shop.shop.ShopItem;
 import dev.user.shop.shop.ShopManager;
 import dev.user.shop.util.ItemUtil;
+import dev.user.shop.util.MessageUtil;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.List;
+import java.util.Map;
 
 public class ShopItemsGUI extends AbstractGUI {
 
@@ -17,7 +21,7 @@ public class ShopItemsGUI extends AbstractGUI {
     private final java.util.Map<Integer, ShopItem> slotToItem;
 
     public ShopItemsGUI(FoliaShopPlugin plugin, Player player, ShopManager.ShopCategory category) {
-        super(plugin, player, plugin.getShopConfig().convertMiniMessage(category.getName()), 54);
+        super(plugin, player, MessageUtil.convertMiniMessageToLegacy(category.getName()), 54);
         this.category = category;
         this.slotToItem = new java.util.HashMap<>();
     }
@@ -80,7 +84,7 @@ public class ShopItemsGUI extends AbstractGUI {
 
         // 购买
         if (!shopItem.canBuy()) {
-            player.sendMessage("§c该物品不可购买！");
+            player.sendMessage(Component.text("该物品不可购买！").color(NamedTextColor.RED));
             return;
         }
         int amount = (clickType == ClickType.SHIFT_LEFT) ? 64 : 1;
@@ -99,126 +103,42 @@ public class ShopItemsGUI extends AbstractGUI {
         // 限制单次最大购买数量
         final int finalAmount = Math.min(amount, 64);
 
-        // 注意：库存检查在数据库层面进行（原子操作），不在内存中预检查
-        // 这是为了防止跨服竞态条件
-
-        final double totalCost = shopItem.getBuyPrice() * finalAmount;
-
         // 检查背包空间
         ItemStack item = shopItem.getDisplayItem().clone();
         item.setAmount(finalAmount);
-        final ItemStack finalItem = item;
 
         int canFit = calculateCanFit(player, item);
         if (canFit < finalAmount) {
-            player.sendMessage("§c背包空间不足！最多还能放入 " + canFit + " 个");
+            player.sendMessage(Component.text("背包空间不足！最多还能放入 " + canFit + " 个").color(NamedTextColor.RED));
             return;
         }
 
-        // 检查每日限额（原子操作：检查+增加计数在同一事务中）
-        if (shopItem.hasDailyLimit()) {
-            plugin.getShopManager().tryIncrementDailyBuyCount(
-                player.getUniqueId(), shopItem.getId(), finalAmount, shopItem.getDailyLimit(),
-                success -> {
-                    if (success) {
-                        // 限额检查通过且已增加计数，继续购买流程
-                        processBuyWithEconomy(player, shopItem, finalItem, finalAmount, totalCost);
-                    } else {
-                        // 超过限额，查询当前已购买数量显示给玩家
-                        player.sendMessage("§c该物品今日购买限额已满（限额 " + shopItem.getDailyLimit() + "），明日再来！");
-                    }
-                }
-            );
-        } else {
-            // 无每日限额，直接进行经济检查
-            processBuyWithEconomy(player, shopItem, finalItem, finalAmount, totalCost);
-        }
+        // 提交购买请求（限额检查在 PurchaseManager 中统一处理）
+        submitPurchase(player, shopItem, finalAmount);
     }
 
-    private void processBuyWithEconomy(Player player, ShopItem shopItem, ItemStack item, int amount, double totalCost) {
-        // 异步检查余额并扣款
-        plugin.getEconomyManager().hasEnoughAsync(player, totalCost, hasEnough -> {
-            if (!hasEnough) {
-                player.sendMessage(plugin.getShopConfig().getMessage("insufficient-funds",
-                    java.util.Map.of("cost", String.format("%.2f", totalCost),
-                                    "currency", plugin.getShopConfig().getCurrencyName())));
-                return;
+    private void submitPurchase(Player player, ShopItem shopItem, int amount) {
+        // 提交到 PurchaseManager 处理
+        plugin.getPurchaseManager().submitPurchase(player, shopItem, amount, result -> {
+            if (result.success) {
+                // 使用新的 Component API 构建购买成功消息
+                Component successMessage = plugin.getShopConfig().getItemMessage(
+                    "purchase-success",
+                    "item",
+                    shopItem.getDisplayItem(),
+                    Map.of(
+                        "amount", String.valueOf(result.amount),
+                        "cost", String.format("%.2f", result.cost),
+                        "currency", plugin.getShopConfig().getCurrencyName()
+                    )
+                );
+                player.sendMessage(successMessage);
+                // 刷新GUI显示
+                refreshItemDisplay(shopItem);
+            } else {
+                player.sendMessage(Component.text(result.message).color(NamedTextColor.RED));
             }
-
-            // 异步扣款
-            plugin.getEconomyManager().withdrawAsync(player, totalCost, success -> {
-                if (!success) {
-                    player.sendMessage(plugin.getShopConfig().getMessage("insufficient-funds",
-                        java.util.Map.of("cost", String.format("%.2f", totalCost),
-                                        "currency", plugin.getShopConfig().getCurrencyName())));
-                    return;
-                }
-
-                // 扣款成功，处理库存
-                processBuyAfterWithdraw(player, shopItem, item, amount, totalCost);
-            });
         });
-    }
-
-    /**
-     * 扣款成功后处理购买
-     */
-    private void processBuyAfterWithdraw(Player player, ShopItem shopItem, ItemStack item,
-                                         int amount, double totalCost) {
-        // 无限库存商品直接完成购买
-        if (shopItem.hasUnlimitedStock()) {
-            completePurchase(player, shopItem, item, amount, totalCost);
-            return;
-        }
-
-        // 有限库存商品使用原子扣减防止超卖
-        final int finalAmount = amount;
-        final double finalCost = totalCost;
-        final ItemStack finalItem = item;
-
-        plugin.getShopManager().atomicReduceStock(shopItem.getId(), amount, actualAmount -> {
-            if (actualAmount == 0) {
-                // 库存扣减失败，退款（已在异步线程，使用同步方法）
-                plugin.getEconomyManager().deposit(player, finalCost);
-                player.sendMessage(plugin.getShopConfig().getMessage("item-out-of-stock",
-                    java.util.Map.of("item", shopItem.getItemKey())));
-                return;
-            }
-
-            // 如果实际扣减数量与请求不同（理论上不应该），调整物品数量
-            if (actualAmount != finalAmount) {
-                finalItem.setAmount(actualAmount);
-            }
-
-            completePurchase(player, shopItem, finalItem, actualAmount,
-                shopItem.getBuyPrice() * actualAmount);
-        });
-    }
-
-    /**
-     * 完成购买流程（给予物品、记录日志等）
-     */
-    private void completePurchase(Player player, ShopItem shopItem, ItemStack item,
-                                  int amount, double totalCost) {
-        // 给予物品
-        player.getInventory().addItem(item);
-
-        // 记录交易
-        plugin.getShopManager().logTransaction(
-            player.getUniqueId(), player.getName(),
-            shopItem.getId(), shopItem.getItemKey(),
-            amount, totalCost, "BUY"
-        );
-
-        // 发送消息
-        player.sendMessage(plugin.getShopConfig().getMessage("purchase-success",
-            java.util.Map.of("item", ItemUtil.getDisplayName(item),
-                            "amount", String.valueOf(amount),
-                            "cost", String.format("%.2f", totalCost),
-                            "currency", plugin.getShopConfig().getCurrencyName())));
-
-        // 更新GUI显示
-        refreshItemDisplay(shopItem);
     }
 
     /**
@@ -249,7 +169,15 @@ public class ShopItemsGUI extends AbstractGUI {
 
         // 价格信息
         if (shopItem.canBuy()) {
-            shopLore.add("§7购买价格: §e" + plugin.getShopConfig().formatCurrency(shopItem.getBuyPrice()));
+            StringBuilder priceStr = new StringBuilder();
+            if (shopItem.getBuyPrice() > 0) {
+                priceStr.append("§e").append(plugin.getShopConfig().formatCurrency(shopItem.getBuyPrice()));
+            }
+            if (shopItem.requiresPoints()) {
+                if (priceStr.length() > 0) priceStr.append(" §7+ ");
+                priceStr.append("§e").append(shopItem.getBuyPoints()).append(" 点券");
+            }
+            shopLore.add("§7购买价格: " + priceStr.toString());
         }
         // 只在系统回收启用时显示出售价格
         if (shopItem.canSell() && plugin.getShopConfig().isSellSystemEnabled()) {
@@ -266,6 +194,11 @@ public class ShopItemsGUI extends AbstractGUI {
         // 每日限额信息
         if (shopItem.hasDailyLimit()) {
             shopLore.add("§7每日限额: §e" + shopItem.getDailyLimit() + " 个");
+        }
+
+        // 终身限额信息
+        if (shopItem.hasPlayerLimit()) {
+            shopLore.add("§7终身限额: §e" + shopItem.getPlayerLimit() + " 个");
         }
 
         shopLore.add("");
@@ -293,7 +226,7 @@ public class ShopItemsGUI extends AbstractGUI {
         int hasAmount = countItems(player, shopItem.getDisplayItem());
 
         if (hasAmount == 0) {
-            player.sendMessage("§c你没有该物品！");
+            player.sendMessage(Component.text("你没有该物品！").color(NamedTextColor.RED));
             return;
         }
 
@@ -308,7 +241,7 @@ public class ShopItemsGUI extends AbstractGUI {
         // 移除物品
         int removed = removeItems(player, shopItem.getDisplayItem(), amount);
         if (removed == 0) {
-            player.sendMessage("§c物品移除失败！");
+            player.sendMessage(Component.text("物品移除失败！").color(NamedTextColor.RED));
             return;
         }
 
@@ -320,7 +253,7 @@ public class ShopItemsGUI extends AbstractGUI {
             if (!success) {
                 // 给予金钱失败，返还物品
                 returnItemsToPlayer(player, shopItem.getDisplayItem(), finalRemoved);
-                player.sendMessage("§c经济系统错误，出售已取消，物品已返还！");
+                player.sendMessage(Component.text("经济系统错误，出售已取消，物品已返还！").color(NamedTextColor.RED));
                 return;
             }
 
@@ -336,12 +269,18 @@ public class ShopItemsGUI extends AbstractGUI {
                 finalRemoved, totalReward, "SELL"
             );
 
-            // 发送消息
-            player.sendMessage(plugin.getShopConfig().getMessage("sell-success",
-                java.util.Map.of("item", ItemUtil.getDisplayName(shopItem.getDisplayItem()),
-                                "amount", String.valueOf(finalRemoved),
-                                "reward", String.format("%.2f", totalReward),
-                                "currency", plugin.getShopConfig().getCurrencyName())));
+            // 发送消息（使用 Component API）
+            Component sellMessage = plugin.getShopConfig().getItemMessage(
+                "sell-success",
+                "item",
+                shopItem.getDisplayItem(),
+                Map.of(
+                    "amount", String.valueOf(finalRemoved),
+                    "reward", String.format("%.2f", totalReward),
+                    "currency", plugin.getShopConfig().getCurrencyName()
+                )
+            );
+            player.sendMessage(sellMessage);
         });
     }
 

@@ -3,6 +3,8 @@ package dev.user.shop.listener;
 import dev.user.shop.FoliaShopPlugin;
 import dev.user.shop.gui.GachaMachineGUI;
 import dev.user.shop.gui.GachaPreviewGUI;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -45,7 +47,7 @@ public class BlockInteractListener implements Listener {
         // 检查扭蛋机是否存在
         var machine = plugin.getGachaManager().getMachine(machineId);
         if (machine == null) {
-            player.sendMessage("§c错误：该方块绑定的扭蛋机 '" + machineId + "' 不存在！");
+            player.sendMessage(Component.text("错误：该方块绑定的扭蛋机 '" + machineId + "' 不存在！").color(NamedTextColor.RED));
             return;
         }
 
@@ -54,13 +56,13 @@ public class BlockInteractListener implements Listener {
 
         // 检查扭蛋功能是否启用
         if (!plugin.getShopConfig().isGachaEnabled()) {
-            player.sendMessage(plugin.getShopConfig().getMessage("feature-disabled"));
+            player.sendMessage(plugin.getShopConfig().getComponent("feature-disabled"));
             return;
         }
 
         // 检查权限
         if (!player.hasPermission("foliashop.gacha.use")) {
-            player.sendMessage(plugin.getShopConfig().getMessage("no-permission"));
+            player.sendMessage(plugin.getShopConfig().getComponent("no-permission"));
             return;
         }
 
