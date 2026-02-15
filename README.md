@@ -125,7 +125,7 @@ foliashop.use
 |------|------|
 | 📦 库存调整 | +1, +10, +64, -1, -10, 设为无限 |
 | 🗑️ **清空库存** | 将库存设为 0 |
-| 🔄 **从配置文件重置** | 从 `config.yml` 重新加载该物品的所有配置 |
+| 🔄 **从配置文件重置** | 从 `shop.yml` 重新加载该物品的所有配置 |
 | ❌ **删除物品** | 从数据库中永久删除该商店物品（带确认对话框） |
 
 ### 数据清理
@@ -178,28 +178,58 @@ foliashop.use
 
 ## ⚙️ 配置说明
 
-### 基础配置
+### 配置文件结构
+
+插件使用分离的配置文件结构，便于管理：
+
+```
+plugins/FoliaShop/
+├── config.yml          # 主配置：数据库、经济、GUI、消息
+├── shop.yml            # 商店配置：商品、分类、回收设置
+├── gacha.yml           # 扭蛋配置：扭蛋机、奖品、保底规则
+└── backups/            # 自动创建的备份目录
+```
+
+**各文件作用：**
+- `config.yml` - 数据库连接、经济系统设置、GUI界面配置、消息文本
+- `shop.yml` - 商品定义、分类设置、系统回收物品列表
+- `gacha.yml` - 扭蛋机定义、奖品池、保底配置、展示实体效果
+
+### 基础配置 (config.yml)
 ```yaml
 # 数据库配置
 database:
-  type: H2  # 可选: H2, MYSQL
-  host: localhost
-  port: 3306
-  name: foliashop
-  user: root
-  password: password
+  type: h2  # 可选: h2, mysql
+  mysql:
+    host: localhost
+    port: 3306
+    database: foliashop
+    username: root
+    password: password
+  h2:
+    filename: foliashop
 
-# 经济设置
-currency:
-  name: "金币"
-  symbol: "§e💰"
+# 经济系统设置
+economy:
+  enabled: true
+  currency-name: "金币"
+  currency-format: "{amount} {currency}"
 
-# 商店设置
-shop:
-  sell-system:
-    enabled: true
-    mode: ALL  # SHOP_ONLY, CONFIG_ONLY, ALL
+# GUI界面设置
+gui:
+  titles:
+    main-menu: "<dark_gray>主菜单"
+    shop: "<green>系统商店"
+    gacha: "<gold>扭蛋中心"
+
+# 消息设置（支持 MiniMessage 格式）
+messages:
+  prefix: "<gold>[系统商店] <reset>"
+  purchase-success: "<green>✔ 成功购买 <white>{item} <yellow>x{amount}"
+  # ... 更多消息配置
 ```
+
+**注意：** 商店商品配置在 `shop.yml`，扭蛋机配置在 `gacha.yml`，不在 `config.yml` 中。
 
 ### 商品配置示例
 ```yaml
