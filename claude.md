@@ -3,6 +3,20 @@
 ## 项目概述
 一个专为 Folia 服务端设计的系统商店和扭蛋插件，支持原版物品和 CraftEngine 自定义物品。
 
+## 最近更新 (2026-02-15)
+
+### 数据库备份/恢复功能
+1. **新增 `BackupManager` 类** - 支持 SQL 格式数据库导入/导出
+   - 命令: `/foliashop export [full|config|state]` 导出备份
+   - 命令: `/foliashop import <文件名> [replace|merge]` 恢复备份
+   - 支持 H2 和 MySQL 互导（自动语法转换）
+   - 备份文件位置: `plugins/FoliaShop/backups/backup_YYYYMMDD_HHMMSS.sql`
+
+### Bug 修复
+1. **修复数据库建表语句** - 删除重复的 `buy_points` 列，补充 `player_limit` 列
+2. **修复 MySQL 索引创建语法** - MySQL 不支持 `IF NOT EXISTS`，改为捕获异常方式
+3. **修复 `unbindblock` 范围清理** - 将 `TextDisplay` 改为 `ItemDisplay`，正确清理遗留展示实体
+
 ## 核心功能
 
 ### 系统商店

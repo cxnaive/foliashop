@@ -411,7 +411,6 @@ public class GachaDisplayManager {
                                 Entity oldEntity = Bukkit.getEntity(oldUuid);
                                 if (oldEntity != null) {
                                     oldEntity.remove();
-                                    plugin.getLogger().info("[onChunkLoad] 旧展示实体已删除");
                                 }
                             }
                             if (worldDisplays.isEmpty()) {

@@ -15,6 +15,7 @@ import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.bukkit.util.RayTraceResult;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -154,6 +155,20 @@ public class FoliaShopCommand implements CommandExecutor, TabCompleter {
                 }
                 handleStatsCommand(sender, args);
             }
+            case "export" -> {
+                if (!sender.hasPermission("foliashop.admin")) {
+                    sender.sendMessage(plugin.getShopConfig().getComponent("no-permission"));
+                    return true;
+                }
+                handleExportCommand(sender, args);
+            }
+            case "import" -> {
+                if (!sender.hasPermission("foliashop.admin")) {
+                    sender.sendMessage(plugin.getShopConfig().getComponent("no-permission"));
+                    return true;
+                }
+                handleImportCommand(sender, args);
+            }
             case "help" -> sendHelp(sender);
             default -> sender.sendMessage("§c未知命令。使用 /foliashop help 查看帮助。");
         }
@@ -180,6 +195,8 @@ public class FoliaShopCommand implements CommandExecutor, TabCompleter {
                 completions.add("unbindblock");
                 completions.add("listblocks");
                 completions.add("exportshop");
+                completions.add("export");
+                completions.add("import");
                 completions.add("stats");
             }
             return completions.stream()
@@ -212,6 +229,36 @@ public class FoliaShopCommand implements CommandExecutor, TabCompleter {
                 return plugin.getGachaManager().getAllMachines().stream()
                     .map(machine -> machine.getId())
                     .filter(id -> id.toLowerCase().startsWith(args[1].toLowerCase()))
+                    .toList();
+            }
+        }
+
+        // export 命令的参数补全
+        if (args.length == 2 && args[0].equalsIgnoreCase("export")) {
+            if (sender.hasPermission("foliashop.admin")) {
+                return List.of("full", "config", "state").stream()
+                    .filter(s -> s.toLowerCase().startsWith(args[1].toLowerCase()))
+                    .toList();
+            }
+        }
+
+        // import 命令的参数补全
+        if (args.length == 2 && args[0].equalsIgnoreCase("import")) {
+            if (sender.hasPermission("foliashop.admin")) {
+                List<String> files = plugin.getBackupManager().listBackups().stream()
+                    .map(f -> f.getName().replace(".sql", ""))
+                    .limit(10)
+                    .toList();
+                return files.stream()
+                    .filter(s -> s.toLowerCase().startsWith(args[1].toLowerCase()))
+                    .toList();
+            }
+        }
+
+        if (args.length == 3 && args[0].equalsIgnoreCase("import")) {
+            if (sender.hasPermission("foliashop.admin")) {
+                return List.of("replace", "merge").stream()
+                    .filter(s -> s.toLowerCase().startsWith(args[2].toLowerCase()))
                     .toList();
             }
         }
@@ -271,6 +318,8 @@ public class FoliaShopCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("§e/foliashop unbindblock §7- 解绑看向的方块");
             sender.sendMessage("§e/foliashop listblocks [machineId] §7- 列出方块绑定");
             sender.sendMessage("§e/foliashop exportshop §7- 导出商店数据到 backup_shop.yml");
+            sender.sendMessage("§e/foliashop export [full|config|state] §7- 导出数据库备份");
+            sender.sendMessage("§e/foliashop import <文件名> [replace|merge] §7- 从备份恢复数据库");
             sender.sendMessage("§e/foliashop stats [-|<玩家名>] <machineId> <rewardId> §7- 查询奖品统计");
         }
         sender.sendMessage("§6==================================");
@@ -540,5 +589,118 @@ public class FoliaShopCommand implements CommandExecutor, TabCompleter {
             true
         );
         return result != null ? result.getHitBlock() : null;
+    }
+
+    private void handleExportCommand(CommandSender sender, String[] args) {
+        String type = args.length >= 2 ? args[1].toLowerCase() : "config";
+
+        String[] tables;
+        switch (type) {
+            case "full" -> {
+                tables = new String[]{
+                    "shop_items", "gacha_block_bindings",
+                    "player_item_limits", "gacha_pity", "daily_limits",
+                    "transactions", "gacha_records"
+                };
+            }
+            case "config" -> {
+                tables = new String[]{"shop_items", "gacha_block_bindings"};
+            }
+            case "state" -> {
+                tables = new String[]{
+                    "shop_items", "gacha_block_bindings",
+                    "player_item_limits", "gacha_pity", "daily_limits"
+                };
+            }
+            default -> {
+                sender.sendMessage("§c用法: /foliashop export [full|config|state]");
+                sender.sendMessage("§7full - 导出所有数据（包含日志）");
+                sender.sendMessage("§7config - 只导出配置（商品、方块绑定）");
+                sender.sendMessage("§7state - 导出配置和玩家状态（不含日志）");
+                return;
+            }
+        }
+
+        sender.sendMessage("§e正在导出数据库备份，请稍候...");
+
+        plugin.getBackupManager().exportToSql(tables, file -> {
+            if (file != null) {
+                sender.sendMessage("§a✔ 备份成功: §e" + file.getName());
+                sender.sendMessage("§7位置: " + file.getAbsolutePath());
+            } else {
+                sender.sendMessage("§c✘ 备份失败，请查看控制台日志");
+            }
+        });
+    }
+
+    private void handleImportCommand(CommandSender sender, String[] args) {
+        if (args.length < 2) {
+            sender.sendMessage("§c用法: /foliashop import <文件名> [replace|merge]");
+            sender.sendMessage("§7文件名不需要包含 .sql 后缀");
+            sender.sendMessage("§7replace - 清空现有数据后导入");
+            sender.sendMessage("§7merge - 保留现有数据，跳过冲突");
+            sender.sendMessage("§e可用备份:");
+            List<File> backups = plugin.getBackupManager().listBackups();
+            if (backups.isEmpty()) {
+                sender.sendMessage("§7  暂无备份文件");
+            } else {
+                int index = 1;
+                for (File f : backups) {
+                    sender.sendMessage("§7  " + index + ". §e" + f.getName());
+                    if (index++ >= 5) break;
+                }
+                if (backups.size() > 5) {
+                    sender.sendMessage("§7  ... 还有 " + (backups.size() - 5) + " 个");
+                }
+            }
+            return;
+        }
+
+        String fileName = args[1];
+        if (!fileName.endsWith(".sql")) {
+            fileName += ".sql";
+        }
+
+        File backupFile = new File(plugin.getBackupManager().getBackupDir(), fileName);
+        if (!backupFile.exists()) {
+            sender.sendMessage("§c备份文件不存在: " + fileName);
+            return;
+        }
+
+        dev.user.shop.database.BackupManager.ImportMode mode = dev.user.shop.database.BackupManager.ImportMode.REPLACE;
+        if (args.length >= 3) {
+            try {
+                mode = dev.user.shop.database.BackupManager.ImportMode.valueOf(args[2].toUpperCase());
+            } catch (IllegalArgumentException e) {
+                sender.sendMessage("§c无效的导入模式，使用 replace 或 merge");
+                return;
+            }
+        }
+
+        String finalFileName = fileName;
+        if (mode == dev.user.shop.database.BackupManager.ImportMode.REPLACE) {
+            sender.sendMessage("§c⚠ 警告: 这将清空现有数据并导入备份！");
+            sender.sendMessage("§e正在导入: §7" + finalFileName);
+        } else {
+            sender.sendMessage("§e正在合并导入: §7" + finalFileName);
+        }
+
+        plugin.getBackupManager().importFromSql(backupFile, mode, rows -> {
+            if (rows >= 0) {
+                sender.sendMessage("§a✔ 导入成功，共导入 §e" + rows + " §a条记录");
+
+                // 重新加载管理器以刷新内存数据
+                if (plugin.getShopManager() != null) {
+                    plugin.getShopManager().reload();
+                }
+                if (plugin.getGachaBlockManager() != null) {
+                    plugin.getGachaBlockManager().reload();
+                }
+
+                sender.sendMessage("§7已重新加载商店和扭蛋数据");
+            } else {
+                sender.sendMessage("§c✘ 导入失败，请查看控制台日志");
+            }
+        });
     }
 }

@@ -195,8 +195,8 @@ public class DatabaseManager {
                     "    slot INT DEFAULT 0," +
                     "    enabled BOOLEAN DEFAULT TRUE," +
                     "    daily_limit INT DEFAULT 0," +
+                    "    player_limit INT DEFAULT 0," +
                     "    components TEXT," +
-                    "    buy_points INT DEFAULT 0," +
                     "    commands TEXT," +
                     "    conditions TEXT," +
                     "    give_item BOOLEAN DEFAULT TRUE" +
@@ -304,25 +304,47 @@ public class DatabaseManager {
 
     /**
      * 创建数据库索引
+     * MySQL 不支持 IF NOT EXISTS，需要手动检查
      */
     private void createIndexes(Statement stmt, boolean isMySQL) throws SQLException {
-        if (isMySQL) {
-            stmt.execute("CREATE INDEX IF NOT EXISTS idx_player ON transactions (player_uuid)");
-            stmt.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON transactions (timestamp)");
-            stmt.execute("CREATE INDEX IF NOT EXISTS idx_gacha_player ON gacha_records (player_uuid)");
-            stmt.execute("CREATE INDEX IF NOT EXISTS idx_gacha_timestamp ON gacha_records (timestamp)");
-            stmt.execute("CREATE INDEX IF NOT EXISTS idx_pity_player ON gacha_pity (player_uuid)");
-            stmt.execute("CREATE INDEX IF NOT EXISTS idx_block_world ON gacha_block_bindings (world_uuid)");
-            stmt.execute("CREATE INDEX IF NOT EXISTS idx_block_machine ON gacha_block_bindings (machine_id)");
-        } else {
-            // H2语法
-            stmt.execute("CREATE INDEX IF NOT EXISTS idx_player ON transactions (player_uuid)");
-            stmt.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON transactions (timestamp)");
-            stmt.execute("CREATE INDEX IF NOT EXISTS idx_gacha_player ON gacha_records (player_uuid)");
-            stmt.execute("CREATE INDEX IF NOT EXISTS idx_gacha_timestamp ON gacha_records (timestamp)");
-            stmt.execute("CREATE INDEX IF NOT EXISTS idx_pity_player ON gacha_pity (player_uuid)");
-            stmt.execute("CREATE INDEX IF NOT EXISTS idx_block_world ON gacha_block_bindings (world_uuid)");
-            stmt.execute("CREATE INDEX IF NOT EXISTS idx_block_machine ON gacha_block_bindings (machine_id)");
+        // 定义要创建的索引
+        String[][] indexes = {
+            {"idx_player", "transactions", "player_uuid"},
+            {"idx_timestamp", "transactions", "timestamp"},
+            {"idx_gacha_player", "gacha_records", "player_uuid"},
+            {"idx_gacha_timestamp", "gacha_records", "timestamp"},
+            {"idx_pity_player", "gacha_pity", "player_uuid"},
+            {"idx_block_world", "gacha_block_bindings", "world_uuid"},
+            {"idx_block_machine", "gacha_block_bindings", "machine_id"}
+        };
+
+        for (String[] index : indexes) {
+            String indexName = index[0];
+            String tableName = index[1];
+            String columnName = index[2];
+
+            try {
+                if (isMySQL) {
+                    // MySQL: 直接执行，如果索引已存在会报错，捕获异常即可
+                    stmt.execute("CREATE INDEX " + indexName + " ON " + tableName + " (" + columnName + ")");
+                } else {
+                    // H2: 支持 IF NOT EXISTS
+                    stmt.execute("CREATE INDEX IF NOT EXISTS " + indexName + " ON " + tableName + " (" + columnName + ")");
+                }
+            } catch (SQLException e) {
+                // 检查是否是"索引已存在"的错误
+                String msg = e.getMessage().toLowerCase();
+                if (msg.contains("duplicate") || msg.contains("already exists") ||
+                    msg.contains("idx_player") || msg.contains("idx_timestamp") ||
+                    msg.contains("idx_gacha") || msg.contains("idx_pity") ||
+                    msg.contains("idx_block")) {
+                    // 索引已存在，忽略错误
+                    plugin.getLogger().fine("索引 " + indexName + " 已存在，跳过创建");
+                } else {
+                    // 其他错误，重新抛出
+                    throw e;
+                }
+            }
         }
     }
 

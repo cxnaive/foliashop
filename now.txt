@@ -1,0 +1,2061 @@
+
+ ▐▛███▜▌   Claude Code v2.1.42
+▝▜█████▛▘  Opus 4.6 · API Usage Billing
+  ▘▘ ▝▝    ~/mc_projects/folia_shop
+
+  Welcome to Opus 4.6
+
+❯ 初始化，仔细阅读项目 
+
+● 我来帮你仔细阅读这个项目。首先让我探索项目结构。
+
+● Explore(探索项目结构)
+  ⎿  Done (18 tool uses · 21.9k tokens · 57s)
+  (ctrl+o to expand)
+
+● 现在让我深入阅读项目的核心文件，了解更多实现细节。
+
+● Read 4 files (ctrl+o to expand)
+
+● 让我继续阅读更多核心模块的实现。
+
+● Read 3 files (ctrl+o to expand)
+
+● 让我继续阅读数据库和其他核心配置。
+
+● Read 3 files (ctrl+o to expand)
+
+● 让我继续阅读其他配置文件和开发文档。
+
+● Read 3 files (ctrl+o to expand)
+
+● 项目初始化完成。以下是 FoliaShop 项目的完整概述：
+
+  ---
+  项目概述
+
+  FoliaShop 是一个专为 Folia/Paper 1.21+ 服务端设计的 Minecraft
+  插件，提供系统商店和扭蛋系统两大核心功能。
+
+  基本信息
+
+  - 版本: 1.0.3
+  - 构建工具: Gradle (Kotlin DSL)
+  - JDK: Java 21
+  - 总行数: 约 12,481 行 Java 代码
+
+  核心依赖
+
+  ┌──────────────┬──────────────────────┐
+  │     依赖     │         用途         │
+  ├──────────────┼──────────────────────┤
+  │ XConomy      │ 经济系统（硬依赖）   │
+  ├──────────────┼──────────────────────┤
+  │ CraftEngine  │ 自定义物品（硬依赖） │
+  ├──────────────┼──────────────────────┤
+  │ PlayerPoints │ 点券系统（软依赖）   │
+  ├──────────────┼──────────────────────┤
+  │ HikariCP     │ 数据库连接池         │
+  └──────────────┴──────────────────────┘
+
+  ---
+  项目结构
+
+  dev/user/shop/
+  ├── FoliaShopPlugin.java      # 主插件类
+  ├── command/                  # 命令处理器
+  │   ├── FoliaShopCommand.java
+  │   ├── GachaCommand.java
+  │   └── ShopCommand.java
+  ├── config/ShopConfig.java    # 配置管理
+  ├── database/                 # 数据库层
+  │   ├── DatabaseManager.java  # 连接池管理
+  │   └── DatabaseQueue.java    # 异步操作队列
+  ├── economy/                  # 经济系统
+  │   ├── EconomyManager.java   # XConomy 接口
+  │   └── PlayerPointsManager.java
+  ├── gacha/                    # 扭蛋系统核心
+  │   ├── GachaMachine.java     # 扭蛋机数据模型
+  │   ├── GachaManager.java     # 主管理器
+  │   ├── GachaReward.java      # 奖品模型
+  │   └── ...                   # 其他组件
+  ├── gui/                      # GUI 界面系统（18个类）
+  │   ├── AbstractGUI.java      # 抽象基类
+  │   ├── GachaMainGUI.java     # 扭蛋主界面
+  │   ├── ShopCategoryGUI.java  # 商店分类界面
+  │   └── ...                   # 其他界面
+  ├── listener/                 # 事件监听
+  ├── shop/                     # 商店系统核心
+  │   ├── ShopManager.java      # 主管理器
+  │   └── ShopItem.java         # 商品模型
+  └── util/                     # 工具类
+      ├── ItemUtil.java         # 物品工具
+      └── MessageUtil.java      # MiniMessage 工具
+
+  ---
+  核心功能
+
+  1. 系统商店
+
+  - ✅ 购买/出售物品
+  - ✅ 商品分类管理
+  - ✅ 库存系统（支持无限库存 -1）
+  - ✅ 每日购买限额（每个物品独立）
+  - ✅ 玩家终身限购（永久累计）
+  - ✅ 支持金币 + 点券混合支付
+  - ✅ 交易记录查询（最近20次）
+  - ✅ 支持 CraftEngine 自定义物品
+  - ✅ 支持 NBT 组件（附魔、自定义名称、Lore）
+
+  2. 扭蛋系统
+
+  - ✅ 多扭蛋机支持
+  - ✅ 概率配置（归一化显示）
+  - ✅ 抽奖动画（单抽 + 10连抽）
+  - ✅ 软保底机制（线性概率增长）
+  - ✅ 稀有奖品广播（MiniMessage 格式）
+  - ✅ 奖品预览（按概率排序）
+  - ✅ 抽奖记录
+  - ✅ 方块绑定展示实体（悬浮物品动画）
+
+  3. 数据库
+
+  - ✅ 支持 H2（本地）和 MySQL（跨服）
+  - ✅ 异步数据库操作队列
+  - ✅ 自动数据库迁移
+  - ✅ HikariCP 连接池
+
+  ---
+  配置文件
+
+  ┌────────────┬───────────────────────────────────┐
+  │    文件    │               用途                │
+  ├────────────┼───────────────────────────────────┤
+  │ config.yml │ 主配置（数据库、经济、GUI、消息） │
+  ├────────────┼───────────────────────────────────┤
+  │ shop.yml   │ 商店商品配置                      │
+  ├────────────┼───────────────────────────────────┤
+  │ gacha.yml  │ 扭蛋机配置                        │
+  └────────────┴───────────────────────────────────┘
+
+  ---
+  最近开发进度（claude.md）
+
+  2025-02-14 更新
+
+  1. Component API 迁移 - 全面升级消息系统，支持 MiniMessage
+  2. 玩家限购功能 - 终身购买限制 (player-limit)
+  3. PurchaseManager - 统一购买逻辑，保证原子性
+  4. PlayerPoints 支持 - 新增积分支付方式
+
+  2025-02-09 更新
+
+  1. 软保底机制 - 替换多段硬保底为单段软保底
+  2. 数据库迁移 - 自动检测旧表结构并迁移
+  3. 抽奖广播优化 - 新增 {draws} 变量显示距离上次抽到的次数
+
+  ---
+  项目已完整阅读。如果你需要了解特定模块的更多细节，或者需要我帮你实现某个功能，
+  请告诉我。
+
+✻ Brewed for 1m 55s
+
+❯ 目前unbindblock是怎么删除范围内的显示实体的 
+
+● 让我查找 unbindblock 命令的实现代码。
+
+● Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● 现在让我查看 GachaBlockManager.unbindBlock() 方法的具体实现。
+
+● Read 1 file (ctrl+o to expand)
+
+● 让我再查看 GachaDisplayManager.removeDisplay() 方法来了解完整的删除逻辑。
+
+● Read 1 file (ctrl+o to expand)
+
+● 根据代码分析，unbindblock 命令删除范围内显示实体的逻辑如下：
+
+  删除流程
+
+  FoliaShopCommand.handleUnbindBlockCommand() → GachaBlockManager.unbindBlock()
+  → 分两步删除实体
+
+  第一步：删除绑定的 ItemDisplay
+
+  在 GachaDisplayManager.removeDisplay() 方法中（第 212-244 行）：
+  - 从内存 Map 中移除记录
+  - 通过保存的 UUID 从世界中移除 ItemDisplay 实体
+  - 清除数据库中的 display_entity_uuid 字段
+
+  第二步：删除范围内的 TextDisplay
+
+  在 GachaBlockManager.unbindBlock() 方法中（第 217-248 行），执行范围删除：
+
+  // 获取配置的范围（默认 2.0 格）
+  float cleanupRange = plugin.getShopConfig().getDisplayEntityCleanupRange();
+  double minY = baseLoc.getY();
+  double maxY = baseLoc.getY() + cleanupRange;
+  double centerX = baseLoc.getX();
+  double centerZ = baseLoc.getZ();
+
+  // 遍历世界中所有 TextDisplay
+  for (TextDisplay display : world.getEntitiesByClass(TextDisplay.class)) {
+      Location loc = display.getLocation();
+
+      // 1. Y轴范围判断：方块Y 到 方块Y+cleanupRange 之间
+      if (loc.getY() >= minY && loc.getY() <= maxY) {
+          // 2. X/Z 范围限制：距离中心点小于 1.0 格（确保是同一方块区域）
+          if (Math.abs(loc.getX() - centerX) < 1.0 &&
+              Math.abs(loc.getZ() - centerZ) < 1.0) {
+              display.remove();
+          }
+      }
+  }
+
+  删除范围配置
+
+  在 gacha.yml 中可配置范围（默认 2.0 格）：
+
+  display-entity:
+    cleanup-range: 2.0  # 解绑时清理范围（格）
+
+  总结
+
+  unbindblock 会删除两类实体：
+  1. 绑定的 ItemDisplay - 通过 UUID 精确删除（扭蛋机图标）
+  2. 范围内 TextDisplay - 删除 Y轴
+  0-2格、X/Z轴±1格范围内的所有文字展示实体（如粒子效果产生的文字）
+
+✻ Baked for 43s
+
+❯ 目前没有能够成功删除遗留的displayitem，帮我添加一些调试信息 
+
+● 我来帮你在关键位置添加调试信息，以便排查遗留 display item 无法删除的问题。
+
+● Update(src/main/java/dev/user/shop/gacha/GachaBlockManager.java)
+  ⎿  Added 18 lines
+      216              }, success -> {                                   
+      217                  // 调度到区域线程移除展示实体（范围删除 Y 轴  
+           0-2 格内所有 TextDisplay）                                    
+      218                  World world =                                 
+           Bukkit.getWorld(binding.getWorldUuid());                      
+      219 +                plugin.getLogger().info("[UnbindDebug]        
+          +开始解绑流程，世界=" + (world != null ? world.getName() :     
+          +"null") +                                                     
+      220 +                    ", 绑定ID=" + binding.getId() + ",        
+          +displayUuid=" + binding.getDisplayEntityUuid());              
+      221 +                                                              
+      222                  if (world != null) {                          
+      223                      Location baseLoc = new Location(          
+      224                          world,                                
+     ...
+      229                      double centerX = baseLoc.getX();          
+      230                      double centerZ = baseLoc.getZ();          
+      231                                                                
+      232 +                    plugin.getLogger().info("[UnbindDebug]    
+          +准备调度到区域线程，位置=" + baseLoc +                        
+      233 +                        ", cleanupRange=" + cleanupRange + ", 
+          + Y范围=" + minY + "-" + maxY);                                
+      234 +                                                              
+      235                                                                
+           plugin.getServer().getRegionScheduler().execute(plugin,       
+           baseLoc, () -> {                                              
+      236 +                                                              
+          +plugin.getLogger().info("[UnbindDebug]                        
+          +已进入区域线程，开始删除展示实体");                           
+      237 +                                                              
+      238                          // 1. 先清理绑定的                    
+           ItemDisplay（从内存和数据库中移除）                           
+      239                                                                
+           plugin.getGachaDisplayManager().removeDisplay(binding);       
+      240                                                                
+      241                          // 2. 再清理范围内的所有              
+           TextDisplay（其他展示实体）                                   
+      242 +                        int textDisplayCount = 0;             
+      243 +                        int removedTextDisplayCount = 0;      
+      244                          for (TextDisplay display :            
+           world.getEntitiesByClass(TextDisplay.class)) {                
+      245 +                            textDisplayCount++;               
+      246                              Location loc =                    
+           display.getLocation();                                        
+      247                              // Y轴范围判断                    
+      248                              if (loc.getY() >= minY &&         
+           loc.getY() <= maxY) {                                         
+      249                                  // X/Z                        
+           范围限制（确保是同一方块区域）                                
+      250                                  if (Math.abs(loc.getX() -     
+           centerX) < 1.0 &&                                             
+      251                                      Math.abs(loc.getZ() -     
+           centerZ) < 1.0) {                                             
+      252 +                                                              
+          +plugin.getLogger().info("[UnbindDebug] 删除TextDisplay:       
+          +uuid=" + display.getUniqueId() +                              
+      253 +                                        ", loc=" + loc);      
+      254                                      display.remove();         
+      255 +                                                              
+          +removedTextDisplayCount++;                                    
+      256                                  }                             
+      257                              }                                 
+      258                          }                                     
+      259 +                                                              
+          +plugin.getLogger().info("[UnbindDebug]                        
+          +TextDisplay清理完成，总共=" + textDisplayCount +              
+      260 +                            ", 删除=" +                       
+          +removedTextDisplayCount);                                     
+      261                      });                                       
+      262 +                } else {                                      
+      263 +                    plugin.getLogger().warning("[UnbindDebug] 
+          + 世界未加载，无法删除展示实体，worldUuid=" +                  
+          +binding.getWorldUuid());                                      
+      264                  }                                             
+      265                  callback.accept(new BindResult(true,          
+           existingMachine));                                            
+      266              },                                                
+
+● Update(src/main/java/dev/user/shop/gacha/GachaDisplayManager.java)
+  ⎿  Added 27 lines, removed 3 lines
+      211       */                                                       
+      212      public void removeDisplay(GachaBlockBinding binding) {    
+      213          UUID displayUuid = binding.getDisplayEntityUuid();    
+      214 +        plugin.getLogger().info("[RemoveDisplayDebug]         
+          +开始移除展示实体，bindingId=" + binding.getId() +             
+      215 +            ", displayUuid=" + displayUuid + ", worldUuid=" + 
+          + binding.getWorldUuid());                                     
+      216                                                                
+      217          // 从内存移除                                         
+      218          Map<BlockPos, UUID> worldDisplays =                   
+           displayEntities.get(binding.getWorldUuid());                  
+      219          if (worldDisplays != null) {                          
+      220 -                                                              
+          -worldDisplays.values().remove(binding.getDisplayEntityUuid());
+      220 +            boolean removed =                                 
+          +worldDisplays.values().remove(binding.getDisplayEntityUuid());
+      221 +            plugin.getLogger().info("[RemoveDisplayDebug]     
+          +内存移除结果=" + removed + ", 剩余数量=" +                    
+          +worldDisplays.size());                                        
+      222              if (worldDisplays.isEmpty()) {                    
+      223                                                                
+           displayEntities.remove(binding.getWorldUuid());               
+      224 +                plugin.getLogger().info("[RemoveDisplayDebug] 
+          + worldDisplays为空，已移除整个世界记录");                     
+      225              }                                                 
+      226 +        } else {                                              
+      227 +            plugin.getLogger().warning("[RemoveDisplayDebug]  
+          +worldDisplays为null，世界UUID=" + binding.getWorldUuid());    
+      228          }                                                     
+      229                                                                
+      230          // 从世界移除实体                                     
+      231          if (displayUuid != null) {                            
+      232              World world =                                     
+           Bukkit.getWorld(binding.getWorldUuid());                      
+      233 +            plugin.getLogger().info("[RemoveDisplayDebug]     
+          +世界=" + (world != null ? world.getName() : "null"));         
+      234 +                                                              
+      235              if (world != null) {                              
+      236                  Entity entity =                               
+           Bukkit.getEntity(displayUuid);                                
+      237 +                plugin.getLogger().info("[RemoveDisplayDebug] 
+          + 通过UUID查找实体=" + (entity != null ? entity.getType() :    
+          +"null") +                                                     
+      238 +                    ", isValid=" + (entity != null ?          
+          +entity.isValid() : "N/A"));                                   
+      239 +                                                              
+      240                  if (entity != null && entity.getType() ==     
+           EntityType.ITEM_DISPLAY) {                                    
+      241                      // Folia: 确保在正确的区域线程            
+      242 -                    if (Bukkit.isOwnedByCurrentRegion(entity) 
+          -) {                                                           
+      242 +                    boolean isOwned =                         
+          +Bukkit.isOwnedByCurrentRegion(entity);                        
+      243 +                                                              
+          +plugin.getLogger().info("[RemoveDisplayDebug]                 
+          +实体类型正确，isOwnedByCurrentRegion=" + isOwned);            
+      244 +                                                              
+      245 +                    if (isOwned) {                            
+      246                          entity.remove();                      
+      247 +                                                              
+          +plugin.getLogger().info("[RemoveDisplayDebug]                 
+          +实体已在当前区域，已直接移除");                               
+      248                      } else {                                  
+      249                          // 调度到正确的区域线程               
+      250                          Location loc = entity.getLocation();  
+      251 -                                                              
+          -plugin.getServer().getRegionScheduler().execute(plugin, loc,  
+          -entity::remove);                                              
+      251 +                                                              
+          +plugin.getLogger().info("[RemoveDisplayDebug]                 
+          +实体不在当前区域，调度到位置=" + loc);                        
+      252 +                                                              
+          +plugin.getServer().getRegionScheduler().execute(plugin, loc,  
+          +() -> {                                                       
+      253 +                                                              
+          +plugin.getLogger().info("[RemoveDisplayDebug]                 
+          +在目标区域线程执行移除，entity=" + entity.getUniqueId());     
+      254 +                            entity.remove();                  
+      255 +                        });                                   
+      256                      }                                         
+      257 +                } else if (entity != null) {                  
+      258 +                                                              
+          +plugin.getLogger().warning("[RemoveDisplayDebug]              
+          +实体类型不匹配，实际类型=" + entity.getType());               
+      259                  }                                             
+      260              }                                                 
+      261 +        } else {                                              
+      262 +            plugin.getLogger().warning("[RemoveDisplayDebug]  
+          +displayUuid为null，无法通过UUID移除实体");                    
+      263          }                                                     
+      264                                                                
+      265          // 清除数据库中的UUID                                 
+      266 +        plugin.getLogger().info("[RemoveDisplayDebug]         
+          +清除数据库中的UUID，bindingId=" + binding.getId());           
+      267          clearDisplayUuid(binding.getId());                    
+      268      }                                                         
+      269                                                                
+
+● 现在让我检查并添加区块加载相关的调试信息。
+
+● Read 1 file (ctrl+o to expand)
+
+● Update(src/main/java/dev/user/shop/gacha/GachaDisplayManager.java)
+  ⎿  Added 39 lines, removed 4 lines
+      380       * 区块加载时恢复展示实体（必须在区域线程执行）           
+      381       */                                                       
+      382      public void onChunkLoad(UUID worldUuid, int chunkX, int   
+           chunkZ) {                                                     
+      383 +        plugin.getLogger().info("[ChunkLoadDebug]             
+          +区块加载事件 world=" + worldUuid +                            
+      384 +            ", chunkX=" + chunkX + ", chunkZ=" + chunkZ);     
+      385 +                                                              
+      386          // 检查是否启用展示实体                               
+      387          if (!plugin.getShopConfig().isDisplayEntityEnabled()) 
+            {                                                            
+      388 +            plugin.getLogger().info("[ChunkLoadDebug]         
+          +展示实体已禁用，跳过");                                       
+      389              return;                                           
+      390          }                                                     
+      391                                                                
+      392          World world = Bukkit.getWorld(worldUuid);             
+      393 -        if (world == null) return;                            
+      393 +        if (world == null) {                                  
+      394 +            plugin.getLogger().warning("[ChunkLoadDebug]      
+          +世界未加载，worldUuid=" + worldUuid);                         
+      395 +            return;                                           
+      396 +        }                                                     
+      397                                                                
+      398          // 检查管理器是否已加载完成，如果没有则延迟执行       
+      399          if (!isLoaded()) {                                    
+      400 +            plugin.getLogger().info("[ChunkLoadDebug]         
+          +管理器未加载完成，延迟执行");                                 
+      401                                                                
+           plugin.getServer().getRegionScheduler().runDelayed(plugin,    
+           world, chunkX << 4, chunkZ << 4, task -> {                    
+      402                  onChunkLoad(worldUuid, chunkX, chunkZ);       
+      403              }, 5L);                                           
+     ...
+      398                                                                
+      399          // 获取该世界的绑定                                   
+      400          Map<BlockVector, String> worldBindings = plugin.getGa 
+           chaBlockManager().getBlockBindingsForWorld(worldUuid);        
+      401 -        if (worldBindings == null) return;                    
+      401 +        if (worldBindings == null) {                          
+      402 +            plugin.getLogger().info("[ChunkLoadDebug]         
+          +该世界没有方块绑定，world=" + world.getName());               
+      403 +            return;                                           
+      404 +        }                                                     
+      405                                                                
+      406 +        plugin.getLogger().info("[ChunkLoadDebug] 该世界有 "  
+          ++ worldBindings.size() + " 个绑定");                          
+      407 +                                                              
+      408          // 检查该区块内是否有绑定的方块需要创建展示实体       
+      409          float heightOffset =                                  
+           plugin.getShopConfig().getDisplayEntityHeightOffset();        
+      410          for (Map.Entry<BlockVector, String> entry :           
+           worldBindings.entrySet()) {                                   
+     ...
+      409              int blockChunkX = pos.getBlockX() >> 4;           
+      410              int blockChunkZ = pos.getBlockZ() >> 4;           
+      411                                                                
+      412 +            plugin.getLogger().info("[ChunkLoadDebug]         
+          +检查绑定 pos=" + pos +                                        
+      413 +                ", blockChunkX=" + blockChunkX + ",           
+          +blockChunkZ=" + blockChunkZ +                                 
+      414 +                ", 目标chunkX=" + chunkX + ", 目标chunkZ=" +  
+          +chunkZ);                                                      
+      415 +                                                              
+      416              if (blockChunkX == chunkX && blockChunkZ ==       
+           chunkZ) {                                                     
+      417                  final BlockVector finalPos = pos;             
+      418                  final String finalMachineId = machineId;      
+     ...
+      420                      finalPos.getBlockZ() + 0.5                
+      421                  );                                            
+      422                                                                
+      423 +                plugin.getLogger().info("[ChunkLoadDebug]     
+          +该绑定在目标区块内，开始处理，machineId=" + machineId);       
+      424 +                                                              
+      425                  //                                            
+           异步获取绑定信息，回调后调度回区域线程执行实体操作            
+      426                                                                
+           plugin.getGachaBlockManager().getBinding(worldUuid, finalPos, 
+            binding -> {                                                 
+      427 -                    if (binding == null) return;              
+      427 +                    if (binding == null) {                    
+      428 +                                                              
+          +plugin.getLogger().warning("[ChunkLoadDebug]                  
+          +绑定信息为null，pos=" + finalPos);                            
+      429 +                        return;                               
+      430 +                    }                                         
+      431                                                                
+      432 +                    plugin.getLogger().info("[ChunkLoadDebug] 
+          + 获取到绑定信息，bindingId=" + binding.getId() +              
+      433 +                        ", displayUuid=" +                    
+          +binding.getDisplayEntityUuid() + ", outdated=" +              
+          +binding.isOutdated());                                        
+      434 +                                                              
+      435                      // 调度回区域线程执行实体操作             
+      436                                                                
+           plugin.getServer().getRegionScheduler().execute(plugin,       
+           location, () -> {                                             
+      437                          //                                    
+           检查是否已有展示实体，如果有则删除（可能是残留的）            
+      438                          BlockPos blockPos = new               
+           BlockPos(finalPos.getBlockX(), finalPos.getBlockY(),          
+           finalPos.getBlockZ());                                        
+      439                          Map<BlockPos, UUID> worldDisplays =   
+           displayEntities.get(worldUuid);                               
+      440 +                                                              
+          +plugin.getLogger().info("[ChunkLoadDebug] worldDisplays=" +   
+          +(worldDisplays != null ? worldDisplays.size() : "null") +     
+      441 +                            " 个记录，blockPos=" + blockPos); 
+      442 +                                                              
+      443                          if (worldDisplays != null) {          
+      444                              UUID oldUuid =                    
+           worldDisplays.remove(blockPos);                               
+      445 +                                                              
+          +plugin.getLogger().info("[ChunkLoadDebug] 旧展示实体UUID=" +  
+          +oldUuid);                                                     
+      446                              if (oldUuid != null) {            
+      447                                  Entity oldEntity =            
+           Bukkit.getEntity(oldUuid);                                    
+      448 +                                                              
+          +plugin.getLogger().info("[ChunkLoadDebug] 查找旧实体结果=" +  
+          +(oldEntity != null ? oldEntity.getType() : "null"));          
+      449                                  if (oldEntity != null) {      
+      450 +                                                              
+          +plugin.getLogger().info("[ChunkLoadDebug] 删除旧展示实体: " + 
+          + oldUuid);                                                    
+      451                                      oldEntity.remove();       
+      452 -                                                              
+          -plugin.getLogger().info("[onChunkLoad] 旧展示实体已删除");    
+      452                                  }                             
+      453                              }                                 
+      454                              if (worldDisplays.isEmpty()) {    
+     ...
+      447                          if (machine != null) {                
+      448                              // 检查该扭蛋机是否启用展示实体   
+      449                              DisplayEntityConfig               
+           effectiveConfig = getEffectiveConfig(machine);                
+      450 +                                                              
+          +plugin.getLogger().info("[ChunkLoadDebug] 扭蛋机=" +          
+          +finalMachineId +                                              
+      451 +                                ", displayEnabled=" +         
+          +effectiveConfig.isEnabled());                                 
+      452                              if (effectiveConfig.isEnabled())  
+           {                                                             
+      453 +                                                              
+          +plugin.getLogger().info("[ChunkLoadDebug] 开始创建展示实体"); 
+      454                                                                
+           createDisplayInternal(binding, machine, location);            
+      455                              }                                 
+      456 +                        } else {                              
+      457 +                                                              
+          +plugin.getLogger().warning("[ChunkLoadDebug] 扭蛋机不存在: "  
+          ++ finalMachineId);                                            
+      458                          }                                     
+      459                      });                                       
+      460                  });                                           
+  ⎿  Found 20 new diagnostic issues in 1 file (ctrl+o to expand)
+
+● 看来编辑出了问题，让我读取当前文件状态并修复。
+
+● Read 1 file (ctrl+o to expand)
+
+● 让我检查 GachaDisplayManager.java 的问题。
+
+● Read 1 file (ctrl+o to expand)
+
+● 现在让我也添加一个额外的命令来帮助诊断现有的展示实体问题。首先让我检查当前的命
+  令处理。
+
+● Read 1 file (ctrl+o to expand)
+
+● 现在让我编译项目检查是否有语法错误。
+
+● Bash(./gradlew compileJava 2>&1 | head -100)
+  ⎿  > Task :compileJava
+     Note: /home/cx/mc_projects/folia_shop/src/main/java/dev/user/shop/shop
+     /ShopManager.java uses or overrides a deprecated API.
+     … +6 lines (ctrl+o to expand)
+  ⎿  (timeout 2m)
+
+● 编译成功。我已经添加了详细的调试信息来帮助你排查遗留 display item
+  无法删除的问题。
+
+  添加的调试信息总结
+
+  1. GachaBlockManager.unbindBlock() - 解绑流程
+
+  当执行 /foliashop unbindblock 时会输出：
+  [UnbindDebug] 开始解绑流程，世界=xxx, 绑定ID=xxx, displayUuid=xxx
+  [UnbindDebug] 准备调度到区域线程，位置=xxx, cleanupRange=2.0, Y范围=xxx
+  [UnbindDebug] 已进入区域线程，开始删除展示实体
+  [UnbindDebug] TextDisplay清理完成，总共=x, 删除=x
+  [UnbindDebug] 世界未加载，无法删除展示实体...
+
+  2. GachaDisplayManager.removeDisplay() - 删除展示实体核心
+
+  [RemoveDisplayDebug] 开始移除展示实体，bindingId=xxx, displayUuid=xxx,
+  worldUuid=xxx
+  [RemoveDisplayDebug] 内存移除结果=true/false, 剩余数量=x
+  [RemoveDisplayDebug] 世界=xxx
+  [RemoveDisplayDebug] 通过UUID查找实体=ITEM_DISPLAY/null, isValid=true/false
+  [RemoveDisplayDebug] 实体类型正确，isOwnedByCurrentRegion=true/false
+  [RemoveDisplayDebug] 实体已在当前区域，已直接移除
+  [RemoveDisplayDebug] 实体不在当前区域，调度到位置=xxx
+  [RemoveDisplayDebug] displayUuid为null，无法通过UUID移除实体
+
+  3. GachaDisplayManager.onChunkLoad() - 区块加载
+
+  [ChunkLoadDebug] 区块加载事件 world=xxx, chunkX=x, chunkZ=z
+  [ChunkLoadDebug] 该世界有 x 个绑定
+  [ChunkLoadDebug] 检查绑定 pos=xxx, blockChunkX=x...
+  [ChunkLoadDebug] 获取到绑定信息，bindingId=x, displayUuid=xxx, outdated=x
+  [ChunkLoadDebug] worldDisplays=x 个记录，blockPos=xxx
+  [ChunkLoadDebug] 旧展示实体UUID=xxx
+  [ChunkLoadDebug] 查找旧实体结果=ITEM_DISPLAY/null
+
+  可能的问题原因
+
+  根据代码分析，遗留实体无法删除的常见原因：
+
+  1. 实体 UUID 不匹配 - 数据库中保存的 UUID 与实际实体不一致
+  2. 区域线程问题 - Folia 的区域化调度导致删除操作在错误的线程执行
+  3. 实体已无效 - 实体已被系统移除但数据库记录未更新
+  4. 世界未加载 - 解绑时世界未完全加载
+
+  请运行 /foliashop unbindblock 并查看控制台输出来定位问题。
+
+✻ Cogitated for 2m 29s
+
+❯ 构建一下 
+  ⎿  Found 1 new diagnostic issue in 1 file (ctrl+o to expand)
+
+● Bash(./gradlew shadowJar 2>&1 | tail -20)
+  ⎿  > Task :compileJava UP-TO-DATE
+     > Task :processResources UP-TO-DATE
+     > Task :classes UP-TO-DATE
+     … +5 lines (ctrl+o to expand)
+  ⎿  (timeout 2m)
+
+● 构建成功。生成的 JAR 文件位于：
+
+  build/libs/folia_shop-1.0.3.jar
+
+✻ Crunched for 37s
+
+❯ [18:02:06 INFO]: [FoliaShop] [UnbindDebug] 开始解绑流程，世界=world,      
+  绑定ID=8, displayUuid=3711d91f-a494-4a6e-ac16-2a5e52961402                
+  [18:02:06 INFO]: [FoliaShop] [UnbindDebug]                                
+  准备调度到区域线程，位置=Location{world=CraftWorld{name=world},x=-98349.5 
+  ,y=67.0,z=-227273.5,pitch=0.0,yaw=0.0}, cleanupRange=4.0, Y范围=67.0-71.0 
+  [18:02:06 INFO]: [FoliaShop] [UnbindDebug]                                
+  已进入区域线程，开始删除展示实体                                          
+  [18:02:06 INFO]: [FoliaShop] [RemoveDisplayDebug]                         
+  开始移除展示实体，bindingId=8,                                            
+  displayUuid=3711d91f-a494-4a6e-ac16-2a5e52961402,                         
+  worldUuid=947c8ad8-b144-4a46-a43a-da691c62ac17                            
+  [18:02:06 INFO]: [FoliaShop] [RemoveDisplayDebug] 内存移除结果=true,      
+  剩余数量=2                                                                
+  [18:02:06 INFO]: [FoliaShop] [RemoveDisplayDebug] 世界=world              
+  [18:02:06 INFO]: [FoliaShop] [RemoveDisplayDebug]                         
+  通过UUID查找实体=ITEM_DISPLAY, isValid=true                               
+  [18:02:06 INFO]: [FoliaShop] [RemoveDisplayDebug]                         
+  实体类型正确，isOwnedByCurrentRegion=true                                 
+  [18:02:06 INFO]: [FoliaShop] [RemoveDisplayDebug]                         
+  实体已在当前区域，已直接移除                                              
+  [18:02:06 INFO]: [FoliaShop] [RemoveDisplayDebug]                         
+  清除数据库中的UUID，bindingId=8                                           
+  [18:02:06 INFO]: [FoliaShop] [UnbindDebug] TextDisplay清理完成，总共=2,   
+  删除=0 但是确实有遗留的展示实体没有删除（非绑定）                         
+
+● 让我扩大清理范围并添加对所有 ItemDisplay 的清理。
+
+● Read 1 file (ctrl+o to expand)
+
+● Update(src/main/java/dev/user/shop/gacha/GachaBlockManager.java)
+  ⎿  Added 56 lines, removed 7 lines
+      241                          // 1. 先清理绑定的                    
+           ItemDisplay（从内存和数据库中移除）                           
+      242                                                                
+           plugin.getGachaDisplayManager().removeDisplay(binding);       
+      243                                                                
+      244 -                        // 2. 再清理范围内的所有              
+          -TextDisplay（其他展示实体）                                   
+      244 +                        // 2. 扩大范围清理所有类型的 Display  
+          +实体（包括其他 ItemDisplay 和 TextDisplay）                   
+      245 +                        // 使用更大的 X/Z 范围（2.0 格 =      
+          +以方块中心为圆心，半径2格的圆柱）                             
+      246 +                        double xzRange = 2.0;                 
+      247 +                                                              
+      248 +                        int itemDisplayCount = 0;             
+      249 +                        int removedItemDisplayCount = 0;      
+      250 +                        for (ItemDisplay display :            
+          +world.getEntitiesByClass(ItemDisplay.class)) {                
+      251 +                            itemDisplayCount++;               
+      252 +                            Location loc =                    
+          +display.getLocation();                                        
+      253 +                            // Y轴范围判断                    
+      254 +                            if (loc.getY() >= minY &&         
+          +loc.getY() <= maxY) {                                         
+      255 +                                // X/Z 范围限制（更大的范围） 
+      256 +                                double dx =                   
+          +Math.abs(loc.getX() - centerX);                               
+      257 +                                double dz =                   
+          +Math.abs(loc.getZ() - centerZ);                               
+      258 +                                if (dx < xzRange && dz <      
+          +xzRange) {                                                    
+      259 +                                                              
+          +plugin.getLogger().info("[UnbindDebug] 删除ItemDisplay:       
+          +uuid=" + display.getUniqueId() +                              
+      260 +                                        ", loc=" + loc + ",   
+          +dx=" + dx + ", dz=" + dz);                                    
+      261 +                                    display.remove();         
+      262 +                                                              
+          +removedItemDisplayCount++;                                    
+      263 +                                } else {                      
+      264 +                                                              
+          +plugin.getLogger().info("[UnbindDebug] 跳过ItemDisplay:       
+          +uuid=" + display.getUniqueId() +                              
+      265 +                                        ", loc=" + loc + ",   
+          +dx=" + dx + ", dz=" + dz + " (超出范围 " + xzRange + ")");    
+      266 +                                }                             
+      267 +                            }                                 
+      268 +                        }                                     
+      269 +                                                              
+      270                          int textDisplayCount = 0;             
+      271                          int removedTextDisplayCount = 0;      
+      272                          for (TextDisplay display :            
+           world.getEntitiesByClass(TextDisplay.class)) {                
+     ...
+      249                              Location loc =                    
+           display.getLocation();                                        
+      250                              // Y轴范围判断                    
+      251                              if (loc.getY() >= minY &&         
+           loc.getY() <= maxY) {                                         
+      252 -                                // X/Z 范围限制（             
+          -确保是同一方块区域）                                          
+      253 -                                if (                          
+          -Math.abs(loc.getX() - centerX) < 1.0 &&                       
+      254 -                                    Math.abs(loc.getZ() -     
+          -centerZ) < 1.0) {                                             
+      252 +                                // X/Z 范围限制（更大的范围） 
+      253 +                                double dx =                   
+          +Math.abs(loc.getX() - centerX);                               
+      254 +                                double dz =                   
+          +Math.abs(loc.getZ() - centerZ);                               
+      255 +                                if (dx < xzRange && dz <      
+          +xzRange) {                                                    
+      256                                                                
+           plugin.getLogger().info("[UnbindDebug] 删除TextDisplay:       
+           uuid=" + display.getUniqueId() +                              
+      257 -                                        ", loc=" + loc);      
+      257 +                                        ", loc=" + loc        
+          + + ", dx=" + dx + ", dz=" + dz);                              
+      258                                      display.remove();         
+      259                                                                
+           removedTextDisplayCount++;                                    
+      260 +                                } else {                      
+      261 +                                                              
+          +plugin.getLogger().info("[UnbindDebug] 跳过TextDisplay:       
+          +uuid=" + display.getUniqueId() +                              
+      262 +                                        ", loc=" + loc + ",   
+          +dx=" + dx + ", dz=" + dz + " (超出范围 " + xzRange + ")");    
+      263                                  }                             
+      264                              }                                 
+      265                          }                                     
+      266 -                                                              
+          -plugin.getLogger().info("[UnbindDebug]                        
+          -TextDisplay清理完成，总共=" + textDisplayCount +              
+      267 -                            ", 删除=" +                       
+          -removedTextDisplayCount);                                     
+      266 +                                                              
+      267 +                        // 3. 清理                            
+          +BlockDisplay（方块展示实体）                                  
+      268 +                        int blockDisplayCount = 0;            
+      269 +                        int removedBlockDisplayCount = 0;     
+      270 +                        for (org.bukkit.entity.BlockDisplay   
+          +display : world.getEntitiesByClass(org.bukkit.entity.BlockDis 
+          +play.class)) {                                                
+      271 +                            blockDisplayCount++;              
+      272 +                            Location loc =                    
+          +display.getLocation();                                        
+      273 +                            if (loc.getY() >= minY &&         
+          +loc.getY() <= maxY) {                                         
+      274 +                                double dx =                   
+          +Math.abs(loc.getX() - centerX);                               
+      275 +                                double dz =                   
+          +Math.abs(loc.getZ() - centerZ);                               
+      276 +                                if (dx < xzRange && dz <      
+          +xzRange) {                                                    
+      277 +                                                              
+          +plugin.getLogger().info("[UnbindDebug] 删除BlockDisplay:      
+          +uuid=" + display.getUniqueId() +                              
+      278 +                                        ", loc=" + loc);      
+      279 +                                    display.remove();         
+      280 +                                                              
+          +removedBlockDisplayCount++;                                   
+      281 +                                }                             
+      282 +                            }                                 
+      283 +                        }                                     
+      284 +                                                              
+      285 +                                                              
+          +plugin.getLogger().info("[UnbindDebug] 清理完成 -             
+          +ItemDisplay: " + removedItemDisplayCount + "/" +              
+          +itemDisplayCount +                                            
+      286 +                            ", TextDisplay: " +               
+          +removedTextDisplayCount + "/" + textDisplayCount +            
+      287 +                            ", BlockDisplay: " +              
+          +removedBlockDisplayCount + "/" + blockDisplayCount);          
+      288                      });                                       
+      289                  } else {                                      
+      290                      plugin.getLogger().warning("[UnbindDebug] 
+            世界未加载，无法删除展示实体，worldUuid=" +                  
+           binding.getWorldUuid());                                      
+
+● Bash(./gradlew shadowJar 2>&1 | tail -15)
+  ⎿      symbol:   class ItemDisplay
+         location: class GachaBlockManager
+       /home/cx/mc_projects/folia_shop/src/main/java/dev/user/shop/gacha/Ga
+     … +14 lines (ctrl+o to expand)
+  ⎿  Found 3 new diagnostic issues in 1 file (ctrl+o to expand)
+
+● Read 1 file (ctrl+o to expand)
+
+● Update(src/main/java/dev/user/shop/gacha/GachaBlockManager.java)
+  ⎿  Added 1 line
+       5  import org.bukkit.Location;                                    
+       6  import org.bukkit.World;                                       
+       7  import org.bukkit.block.Block;                                 
+       8 +import org.bukkit.entity.ItemDisplay;                          
+       9  import org.bukkit.entity.Player;                               
+      10  import org.bukkit.entity.TextDisplay;                          
+      11  import org.bukkit.util.BlockVector;                            
+
+● Bash(./gradlew shadowJar 2>&1 | tail -10)
+  ⎿  Note: Recompile with -Xlint:deprecation for details.
+
+     > Task :processResources UP-TO-DATE
+     … +8 lines (ctrl+o to expand)
+  ⎿  (timeout 2m)
+  ⎿  Found 1 new diagnostic issue in 1 file (ctrl+o to expand)
+
+● 构建成功。现在解绑时会清理：
+
+  1. 绑定的 ItemDisplay（通过 UUID 精确删除）
+  2. 范围内所有 ItemDisplay（Y轴 cleanupRange，X/Z ±2.0格）
+  3. 范围内所有 TextDisplay（同上）
+  4. 范围内所有 BlockDisplay（同上）
+
+  新的调试信息会显示：
+  [UnbindDebug] 删除ItemDisplay: uuid=xxx, loc=xxx, dx=0.5, dz=0.3
+  [UnbindDebug] 跳过ItemDisplay: uuid=xxx, loc=xxx, dx=3.2, dz=1.5 (超出范围
+  2.0)
+  [UnbindDebug] 清理完成 - ItemDisplay: 2/5, TextDisplay: 1/2, BlockDisplay: 0/0
+
+  这可以帮助你确定遗留实体的实际位置。如果还是删除不了，请发新的日志给我。
+
+✻ Churned for 1m 4s
+
+❯ 不用了。我知道问题了。是之前范围清理成了TextDisplay。应该是ItemDisplay。  
+  所以你回退并修改成ItemDisplay吧                                           
+
+● Read 1 file (ctrl+o to expand)
+
+● Update(src/main/java/dev/user/shop/gacha/GachaBlockManager.java)
+  ⎿  Added 4 lines, removed 63 lines
+      237                          ", cleanupRange=" + cleanupRange + ", 
+            Y范围=" + minY + "-" + maxY);                                
+      238                                                                
+      239                                                                
+           plugin.getServer().getRegionScheduler().execute(plugin,       
+           baseLoc, () -> {                                              
+      240 -                                                              
+          -plugin.getLogger().info("[UnbindDebug]                        
+          -已进入区域线程，开始删除展示实体");                           
+      241 -                                                              
+      240                          // 1. 先清理绑定的                    
+           ItemDisplay（从内存和数据库中移除）                           
+      241                                                                
+           plugin.getGachaDisplayManager().removeDisplay(binding);       
+      242                                                                
+      243 -                        // 2. 扩大范围清理所有类型的 Display  
+          -实体（包括其他 ItemDisplay 和 TextDisplay）                   
+      244 -                        // 使用更大的 X/Z 范围（2.0 格 =      
+          -以方块中心为圆心，半径2格的圆柱）                             
+      245 -                        double xzRange = 2.0;                 
+      246 -                                                              
+      247 -                        int itemDisplayCount = 0;             
+      248 -                        int removedItemDisplayCount = 0;      
+      243 +                        // 2. 清理范围内的所有                
+          +ItemDisplay（包括遗留的）                                     
+      244                          for (ItemDisplay display :            
+           world.getEntitiesByClass(ItemDisplay.class)) {                
+      245 -                            itemDisplayCount++;               
+      245                              Location loc =                    
+           display.getLocation();                                        
+      246                              // Y轴范围判断                    
+      247                              if (loc.getY() >= minY &&         
+           loc.getY() <= maxY) {                                         
+      248 -                                // X/Z 范围限制（更大的范围） 
+      249 -                                double dx =                   
+          -Math.abs(loc.getX() - centerX);                               
+      250 -                                double dz =                   
+          -Math.abs(loc.getZ() - centerZ);                               
+      251 -                                if (dx < xzRange && dz <      
+          -xzRange) {                                                    
+      252 -                                                              
+          -plugin.getLogger().info("[UnbindDebug] 删除ItemDisplay:       
+          -uuid=" + display.getUniqueId() +                              
+      253 -                                        ", loc=" + loc + ",   
+          -dx=" + dx + ", dz=" + dz);                                    
+      248 +                                // X/Z 范围限制（             
+          +确保是同一方块区域）                                          
+      249 +                                if (                          
+          +Math.abs(loc.getX() - centerX) < 1.0 &&                       
+      250 +                                    Math.abs(loc.getZ() -     
+          +centerZ) < 1.0) {                                             
+      251                                      display.remove();         
+      252 -                                                              
+          -removedItemDisplayCount++;                                    
+      253 -                                } else {                      
+      254 -                                                              
+          -plugin.getLogger().info("[UnbindDebug] 跳过ItemDisplay:       
+          -uuid=" + display.getUniqueId() +                              
+      255 -                                        ", loc=" + loc + ",   
+          -dx=" + dx + ", dz=" + dz + " (超出范围 " + xzRange + ")");    
+      252                                  }                             
+      253                              }                                 
+      254                          }                                     
+      255 -                                                              
+      256 -                        int textDisplayCount = 0;             
+      257 -                        int removedTextDisplayCount = 0;      
+      258 -                        for (TextDisplay display :            
+          -world.getEntitiesByClass(TextDisplay.class)) {                
+      259 -                            textDisplayCount++;               
+      260 -                            Location loc =                    
+          -display.getLocation();                                        
+      261 -                            // Y轴范围判断                    
+      262 -                            if (loc.getY() >= minY &&         
+          -loc.getY() <= maxY) {                                         
+      263 -                                // X/Z 范围限制（更大的范围） 
+      264 -                                double dx =                   
+          -Math.abs(loc.getX() - centerX);                               
+      265 -                                double dz =                   
+          -Math.abs(loc.getZ() - centerZ);                               
+      266 -                                if (dx < xzRange && dz <      
+          -xzRange) {                                                    
+      267 -                                                              
+          -plugin.getLogger().info("[UnbindDebug] 删除TextDisplay:       
+          -uuid=" + display.getUniqueId() +                              
+      268 -                                        ", loc=" + loc + ",   
+          -dx=" + dx + ", dz=" + dz);                                    
+      269 -                                    display.remove();         
+      270 -                                                              
+          -removedTextDisplayCount++;                                    
+      271 -                                } else {                      
+      272 -                                                              
+          -plugin.getLogger().info("[UnbindDebug] 跳过TextDisplay:       
+          -uuid=" + display.getUniqueId() +                              
+      273 -                                        ", loc=" + loc + ",   
+          -dx=" + dx + ", dz=" + dz + " (超出范围 " + xzRange + ")");    
+      274 -                                }                             
+      275 -                            }                                 
+      276 -                        }                                     
+      277 -                                                              
+      278 -                        // 3. 清理                            
+          -BlockDisplay（方块展示实体）                                  
+      279 -                        int blockDisplayCount = 0;            
+      280 -                        int removedBlockDisplayCount = 0;     
+      281 -                        for (org.bukkit.entity.BlockDisplay   
+          -display : world.getEntitiesByClass(org.bukkit.entity.BlockDis 
+          -play.class)) {                                                
+      282 -                            blockDisplayCount++;              
+      283 -                            Location loc =                    
+          -display.getLocation();                                        
+      284 -                            if (loc.getY() >= minY &&         
+          -loc.getY() <= maxY) {                                         
+      285 -                                double dx =                   
+          -Math.abs(loc.getX() - centerX);                               
+      286 -                                double dz =                   
+          -Math.abs(loc.getZ() - centerZ);                               
+      287 -                                if (dx < xzRange && dz <      
+          -xzRange) {                                                    
+      288 -                                                              
+          -plugin.getLogger().info("[UnbindDebug] 删除BlockDisplay:      
+          -uuid=" + display.getUniqueId() +                              
+      289 -                                        ", loc=" + loc);      
+      290 -                                    display.remove();         
+      291 -                                                              
+          -removedBlockDisplayCount++;                                   
+      292 -                                }                             
+      293 -                            }                                 
+      294 -                        }                                     
+      295 -                                                              
+      296 -                                                              
+          -plugin.getLogger().info("[UnbindDebug] 清理完成 -             
+          -ItemDisplay: " + removedItemDisplayCount + "/" +              
+          -itemDisplayCount +                                            
+      297 -                            ", TextDisplay: " +               
+          -removedTextDisplayCount + "/" + textDisplayCount +            
+      298 -                            ", BlockDisplay: " +              
+          -removedBlockDisplayCount + "/" + blockDisplayCount);          
+      255                      });                                       
+      256                  } else {                                      
+      257                      plugin.getLogger().warning("[UnbindDebug] 
+            世界未加载，无法删除展示实体，worldUuid=" +                  
+           binding.getWorldUuid());                                      
+
+● Update(src/main/java/dev/user/shop/gacha/GachaBlockManager.java)
+  ⎿  Removed 1 line
+       7  import org.bukkit.block.Block;                                 
+       8  import org.bukkit.entity.ItemDisplay;                          
+       9  import org.bukkit.entity.Player;                               
+      10 -import org.bukkit.entity.TextDisplay;                          
+      10  import org.bukkit.util.BlockVector;                            
+      11                                                                 
+      12  import java.sql.Connection;                                    
+
+● Update(src/main/java/dev/user/shop/gacha/GachaBlockManager.java)
+  ⎿  Added 1 line, removed 6 lines
+      214                      return false;                             
+      215                  }                                             
+      216              }, success -> {                                   
+      217 -                // 调度到区域线程移除展示实体（范围删除 Y 轴  
+          -0-2 格内所有 TextDisplay）                                    
+      217 +                // 调度到区域线程移除展示实体（范围删除 Y 轴  
+          +cleanupRange 格内所有 ItemDisplay）                           
+      218                  World world =                                 
+           Bukkit.getWorld(binding.getWorldUuid());                      
+      219 -                plugin.getLogger().info("[UnbindDebug]        
+          -开始解绑流程，世界=" + (world != null ? world.getName() :     
+          -"null") +                                                     
+      220 -                    ", 绑定ID=" + binding.getId() + ",        
+          -displayUuid=" + binding.getDisplayEntityUuid());              
+      219                                                                
+      220                  if (world != null) {                          
+      221                      Location baseLoc = new Location(          
+     ...
+      232                      double centerX = baseLoc.getX();          
+      233                      double centerZ = baseLoc.getZ();          
+      234                                                                
+      235 -                    plugin.getLogger().info("[UnbindDebug]    
+          -准备调度到区域线程，位置=" + baseLoc +                        
+      236 -                        ", cleanupRange=" + cleanupRange + ", 
+          - Y范围=" + minY + "-" + maxY);                                
+      237 -                                                              
+      235                                                                
+           plugin.getServer().getRegionScheduler().execute(plugin,       
+           baseLoc, () -> {                                              
+      236                          // 1. 先清理绑定的                    
+           ItemDisplay（从内存和数据库中移除）                           
+      237                                                                
+           plugin.getGachaDisplayManager().removeDisplay(binding);       
+
+● Update(src/main/java/dev/user/shop/gacha/GachaBlockManager.java)
+  ⎿  Removed 2 lines
+      247                              }                                 
+      248                          }                                     
+      249                      });                                       
+      250 -                } else {                                      
+      251 -                    plugin.getLogger().warning("[UnbindDebug] 
+          - 世界未加载，无法删除展示实体，worldUuid=" +                  
+          -binding.getWorldUuid());                                      
+      250                  }                                             
+      251                  callback.accept(new BindResult(true,          
+           existingMachine));                                            
+      252              },                                                
+
+● Bash(./gradlew shadowJar 2>&1 | tail -10)
+  ⎿  Note: Recompile with -Xlint:deprecation for details.
+
+     > Task :processResources UP-TO-DATE
+     … +8 lines (ctrl+o to expand)
+  ⎿  (timeout 2m)
+
+● 构建成功。已回退为只清理 ItemDisplay：
+
+  1. 绑定的 ItemDisplay - 通过 UUID 精确删除（先调用 removeDisplay()）
+  2. 范围内遗留的 ItemDisplay - 清理 Y轴 cleanupRange 范围内、X/Z ±1.0格内的所有
+   ItemDisplay
+
+✻ Sautéed for 1m 39s
+
+❯ 顺便清楚一下你之前加的调试信息 
+
+● Update(src/main/java/dev/user/shop/gacha/GachaDisplayManager.java)
+  ⎿  Added 3 lines, removed 27 lines
+      211       */                                                       
+      212      public void removeDisplay(GachaBlockBinding binding) {    
+      213          UUID displayUuid = binding.getDisplayEntityUuid();    
+      214 -        plugin.getLogger().info("[RemoveDisplayDebug]         
+          -开始移除展示实体，bindingId=" + binding.getId() +             
+      215 -            ", displayUuid=" + displayUuid + ", worldUuid=" + 
+          - binding.getWorldUuid());                                     
+      214                                                                
+      215          // 从内存移除                                         
+      216          Map<BlockPos, UUID> worldDisplays =                   
+           displayEntities.get(binding.getWorldUuid());                  
+      217          if (worldDisplays != null) {                          
+      218 -            boolean removed =                                 
+          -worldDisplays.values().remove(binding.getDisplayEntityUuid());
+      219 -            plugin.getLogger().info("[RemoveDisplayDebug]     
+          -内存移除结果=" + removed + ", 剩余数量=" +                    
+          -worldDisplays.size());                                        
+      218 +                                                              
+          +worldDisplays.values().remove(binding.getDisplayEntityUuid());
+      219              if (worldDisplays.isEmpty()) {                    
+      220                                                                
+           displayEntities.remove(binding.getWorldUuid());               
+      221 -                plugin.getLogger().info("[RemoveDisplayDebug] 
+          - worldDisplays为空，已移除整个世界记录");                     
+      221              }                                                 
+      222 -        } else {                                              
+      223 -            plugin.getLogger().warning("[RemoveDisplayDebug]  
+          -worldDisplays为null，世界UUID=" + binding.getWorldUuid());    
+      222          }                                                     
+      223                                                                
+      224          // 从世界移除实体                                     
+      225          if (displayUuid != null) {                            
+      226              World world =                                     
+           Bukkit.getWorld(binding.getWorldUuid());                      
+      227 -            plugin.getLogger().info("[RemoveDisplayDebug]     
+          -世界=" + (world != null ? world.getName() : "null"));         
+      228 -                                                              
+      227              if (world != null) {                              
+      228                  Entity entity =                               
+           Bukkit.getEntity(displayUuid);                                
+      229 -                plugin.getLogger().info("[RemoveDisplayDebug] 
+          - 通过UUID查找实体=" + (entity != null ? entity.getType() :    
+          -"null") +                                                     
+      230 -                    ", isValid=" + (entity != null ?          
+          -entity.isValid() : "N/A"));                                   
+      231 -                                                              
+      229                  if (entity != null && entity.getType() ==     
+           EntityType.ITEM_DISPLAY) {                                    
+      230                      // Folia: 确保在正确的区域线程            
+      231 -                    boolean isOwned =                         
+          -Bukkit.isOwnedByCurrentRegion(entity);                        
+      232 -                                                              
+          -plugin.getLogger().info("[RemoveDisplayDebug]                 
+          -实体类型正确，isOwnedByCurrentRegion=" + isOwned);            
+      233 -                                                              
+      234 -                    if (isOwned) {                            
+      231 +                    if (Bukkit.isOwnedByCurrentRegion(entity) 
+          +) {                                                           
+      232                          entity.remove();                      
+      233 -                                                              
+          -plugin.getLogger().info("[RemoveDisplayDebug]                 
+          -实体已在当前区域，已直接移除");                               
+      233                      } else {                                  
+      234                          // 调度到正确的区域线程               
+      235                          Location loc = entity.getLocation();  
+      236 -                                                              
+          -plugin.getLogger().info("[RemoveDisplayDebug]                 
+          -实体不在当前区域，调度到位置=" + loc);                        
+      237 -                                                              
+          -plugin.getServer().getRegionScheduler().execute(plugin, loc,  
+          -() -> {                                                       
+      238 -                                                              
+          -plugin.getLogger().info("[RemoveDisplayDebug]                 
+          -在目标区域线程执行移除，entity=" + entity.getUniqueId());     
+      239 -                            entity.remove();                  
+      240 -                        });                                   
+      236 +                                                              
+          +plugin.getServer().getRegionScheduler().execute(plugin, loc,  
+          +entity::remove);                                              
+      237                      }                                         
+      238 -                } else if (entity != null) {                  
+      239 -                                                              
+          -plugin.getLogger().warning("[RemoveDisplayDebug]              
+          -实体类型不匹配，实际类型=" + entity.getType());               
+      238                  }                                             
+      239              }                                                 
+      240 -        } else {                                              
+      241 -            plugin.getLogger().warning("[RemoveDisplayDebug]  
+          -displayUuid为null，无法通过UUID移除实体");                    
+      240          }                                                     
+      241                                                                
+      242          // 清除数据库中的UUID                                 
+      243 -        plugin.getLogger().info("[RemoveDisplayDebug]         
+          -清除数据库中的UUID，bindingId=" + binding.getId());           
+      243          clearDisplayUuid(binding.getId());                    
+      244      }                                                         
+      245                                                                
+
+● Update(src/main/java/dev/user/shop/gacha/GachaDisplayManager.java)
+  ⎿  Added 3 lines, removed 39 lines
+      356       * 区块加载时恢复展示实体（必须在区域线程执行）           
+      357       */                                                       
+      358      public void onChunkLoad(UUID worldUuid, int chunkX, int   
+           chunkZ) {                                                     
+      359 -        plugin.getLogger().info("[ChunkLoadDebug]             
+          -区块加载事件 world=" + worldUuid +                            
+      360 -            ", chunkX=" + chunkX + ", chunkZ=" + chunkZ);     
+      361 -                                                              
+      359          // 检查是否启用展示实体                               
+      360          if (!plugin.getShopConfig().isDisplayEntityEnabled()) 
+            {                                                            
+      361 -            plugin.getLogger().info("[ChunkLoadDebug]         
+          -展示实体已禁用，跳过");                                       
+      361              return;                                           
+      362          }                                                     
+      363                                                                
+      364          World world = Bukkit.getWorld(worldUuid);             
+      365 -        if (world == null) {                                  
+      366 -            plugin.getLogger().warning("[ChunkLoadDebug]      
+          -世界未加载，worldUuid=" + worldUuid);                         
+      367 -            return;                                           
+      368 -        }                                                     
+      365 +        if (world == null) return;                            
+      366                                                                
+      367          // 检查管理器是否已加载完成，如果没有则延迟执行       
+      368          if (!isLoaded()) {                                    
+      369 -            plugin.getLogger().info("[ChunkLoadDebug]         
+          -管理器未加载完成，延迟执行");                                 
+      369                                                                
+           plugin.getServer().getRegionScheduler().runDelayed(plugin,    
+           world, chunkX << 4, chunkZ << 4, task -> {                    
+      370                  onChunkLoad(worldUuid, chunkX, chunkZ);       
+      371              }, 5L);                                           
+     ...
+      382                                                                
+      383          // 获取该世界的绑定                                   
+      384          Map<BlockVector, String> worldBindings = plugin.getGa 
+           chaBlockManager().getBlockBindingsForWorld(worldUuid);        
+      385 -        if (worldBindings == null) {                          
+      386 -            plugin.getLogger().info("[ChunkLoadDebug]         
+          -该世界没有方块绑定，world=" + world.getName());               
+      387 -            return;                                           
+      388 -        }                                                     
+      385 +        if (worldBindings == null) return;                    
+      386                                                                
+      387 -        plugin.getLogger().info("[ChunkLoadDebug] 该世界有 "  
+          -+ worldBindings.size() + " 个绑定");                          
+      388 -                                                              
+      387          // 检查该区块内是否有绑定的方块需要创建展示实体       
+      388          float heightOffset =                                  
+           plugin.getShopConfig().getDisplayEntityHeightOffset();        
+      389          for (Map.Entry<BlockVector, String> entry :           
+           worldBindings.entrySet()) {                                   
+     ...
+      398              int blockChunkX = pos.getBlockX() >> 4;           
+      399              int blockChunkZ = pos.getBlockZ() >> 4;           
+      400                                                                
+      401 -            plugin.getLogger().info("[ChunkLoadDebug]         
+          -检查绑定 pos=" + pos +                                        
+      402 -                ", blockChunkX=" + blockChunkX + ",           
+          -blockChunkZ=" + blockChunkZ +                                 
+      403 -                ", 目标chunkX=" + chunkX + ", 目标chunkZ=" +  
+          -chunkZ);                                                      
+      404 -                                                              
+      401              if (blockChunkX == chunkX && blockChunkZ ==       
+           chunkZ) {                                                     
+      402                  final BlockVector finalPos = pos;             
+      403                  final String finalMachineId = machineId;      
+     ...
+      413                      finalPos.getBlockZ() + 0.5                
+      414                  );                                            
+      415                                                                
+      416 -                plugin.getLogger().info("[ChunkLoadDebug]     
+          -该绑定在目标区块内，开始处理，machineId=" + machineId);       
+      417 -                                                              
+      416                  //                                            
+           异步获取绑定信息，回调后调度回区域线程执行实体操作            
+      417                                                                
+           plugin.getGachaBlockManager().getBinding(worldUuid, finalPos, 
+            binding -> {                                                 
+      418 -                    if (binding == null) {                    
+      419 -                                                              
+          -plugin.getLogger().warning("[ChunkLoadDebug]                  
+          -绑定信息为null，pos=" + finalPos);                            
+      420 -                        return;                               
+      421 -                    }                                         
+      418 +                    if (binding == null) return;              
+      419                                                                
+      420 -                    plugin.getLogger().info("[ChunkLoadDebug] 
+          - 获取到绑定信息，bindingId=" + binding.getId() +              
+      421 -                        ", displayUuid=" +                    
+          -binding.getDisplayEntityUuid() + ", outdated=" +              
+          -binding.isOutdated());                                        
+      422 -                                                              
+      420                      // 调度回区域线程执行实体操作             
+      421                                                                
+           plugin.getServer().getRegionScheduler().execute(plugin,       
+           location, () -> {                                             
+      422                          //                                    
+           检查是否已有展示实体，如果有则删除（可能是残留的）            
+      423                          BlockPos blockPos = new               
+           BlockPos(finalPos.getBlockX(), finalPos.getBlockY(),          
+           finalPos.getBlockZ());                                        
+      424                          Map<BlockPos, UUID> worldDisplays =   
+           displayEntities.get(worldUuid);                               
+      425 -                                                              
+          -plugin.getLogger().info("[ChunkLoadDebug] worldDisplays=" +   
+          -(worldDisplays != null ? worldDisplays.size() : "null") +     
+      426 -                            " 个记录，blockPos=" + blockPos); 
+      427 -                                                              
+      425                          if (worldDisplays != null) {          
+      426                              UUID oldUuid =                    
+           worldDisplays.remove(blockPos);                               
+      427 -                                                              
+          -plugin.getLogger().info("[ChunkLoadDebug] 旧展示实体UUID=" +  
+          -oldUuid);                                                     
+      427                              if (oldUuid != null) {            
+      428                                  Entity oldEntity =            
+           Bukkit.getEntity(oldUuid);                                    
+      429 -                                                              
+          -plugin.getLogger().info("[ChunkLoadDebug] 查找旧实体结果=" +  
+          -(oldEntity != null ? oldEntity.getType() : "null"));          
+      429                                  if (oldEntity != null) {      
+      430 -                                                              
+          -plugin.getLogger().info("[ChunkLoadDebug] 删除旧展示实体: " + 
+          - oldUuid);                                                    
+      430                                      oldEntity.remove();       
+      431                                  }                             
+      432                              }                                 
+     ...
+      453                          if (machine != null) {                
+      454                              // 检查该扭蛋机是否启用展示实体   
+      455                              DisplayEntityConfig               
+           effectiveConfig = getEffectiveConfig(machine);                
+      456 -                                                              
+          -plugin.getLogger().info("[ChunkLoadDebug] 扭蛋机=" +          
+          -finalMachineId +                                              
+      457 -                                ", displayEnabled=" +         
+          -effectiveConfig.isEnabled());                                 
+      456                              if (effectiveConfig.isEnabled())  
+           {                                                             
+      457 -                                                              
+          -plugin.getLogger().info("[ChunkLoadDebug] 开始创建展示实体"); 
+      457                                                                
+           createDisplayInternal(binding, machine, location);            
+      458                              }                                 
+      459 -                        } else {                              
+      460 -                                                              
+          -plugin.getLogger().warning("[ChunkLoadDebug] 扭蛋机不存在: "  
+          -+ finalMachineId);                                            
+      459                          }                                     
+      460                      });                                       
+      461                  });                                           
+
+● Bash(./gradlew shadowJar 2>&1 | tail -10)
+  ⎿  Note: Recompile with -Xlint:deprecation for details.
+
+     > Task :processResources UP-TO-DATE
+     … +8 lines (ctrl+o to expand)
+  ⎿  (timeout 2m)
+
+● 构建成功。所有调试信息已清理完毕：
+
+  - GachaBlockManager.java - 保留了解绑逻辑，移除了调试日志
+  - GachaDisplayManager.java - 移除了 removeDisplay() 和 onChunkLoad()
+  中的调试日志
+
+✻ Cogitated for 1m 19s
+
+❯ 我想增加一个备份数据、恢复数据的功能。读取/恢复数据库。要怎么做。先不写实 
+  际的代码                                                                  
+
+● 先让我了解一下当前的数据库表结构和数据量特点，然后给你设计方案。
+
+● Searched for 1 pattern, read 1 file (ctrl+o to expand)
+
+● 根据数据库结构，我为你设计以下备份/恢复方案：
+
+  数据库表分类
+
+  表名: shop_items
+  类型: 配置类
+  数据特点: 商品定义，数据量小
+  备份优先级: ⭐⭐⭐ 必须
+  ────────────────────────────────────────
+  表名: gacha_block_bindings
+  类型: 配置类
+  数据特点: 方块绑定位置，数据量小
+  备份优先级: ⭐⭐⭐ 必须
+  ────────────────────────────────────────
+  表名: transactions
+  类型: 日志类
+  数据特点: 交易历史，数据量大，只增不改
+  备份优先级: ⭐⭐ 可选
+  ────────────────────────────────────────
+  表名: gacha_records
+  类型: 日志类
+  数据特点: 抽奖历史，数据量大，只增不改
+  备份优先级: ⭐⭐ 可选
+  ────────────────────────────────────────
+  表名: daily_limits
+  类型: 临时状态
+  数据特点: 每日计数，可重建
+  备份优先级: ⭐ 可选
+  ────────────────────────────────────────
+  表名: player_item_limits
+  类型: 状态类
+  数据特点: 玩家限购，重要
+  备份优先级: ⭐⭐⭐ 必须
+  ────────────────────────────────────────
+  表名: gacha_pity
+  类型: 状态类
+  数据特点: 保底计数，重要
+  备份优先级: ⭐⭐⭐ 必须
+
+  方案一：SQL 导出/导入（推荐）
+
+  备份逻辑：
+  // 1. 生成带时间戳的 SQL 文件
+  backup_20250214_143022.sql
+
+  // 2. 使用数据库原生导出（H2: SCRIPT TO, MySQL: mysqldump 或 SELECT ... INTO 
+  OUTFILE）
+  // H2: SCRIPT TO 'file.sql'
+  // MySQL: 逐表 SELECT * 写入文件
+
+  // 3. 文件内容格式
+  -- FoliaShop Backup 2025-02-14 14:30:22
+  -- Type: FULL | DATA_ONLY | CONFIG_ONLY
+  -- Tables: shop_items,gacha_block_bindings,player_item_limits,gacha_pity
+
+  INSERT INTO shop_items VALUES (...);
+  INSERT INTO player_item_limits VALUES (...);
+  ...
+
+  恢复逻辑：
+  // 1. 校验备份文件（版本、表结构兼容性）
+  // 2. 提供恢复模式：
+  //    - FULL_REPLACE: 清空所有表，全量导入
+  //    - MERGE: 合并数据（主键冲突时跳过或覆盖）
+  //    - CONFIG_ONLY: 只恢复配置表，保留日志
+
+  // 3. 恢复前自动创建备份（防止误操作）
+  // 4. 使用事务包裹，失败可回滚
+
+  优缺点：
+  - ✅ 速度快，原生 SQL 执行
+  - ✅ 兼容 H2 和 MySQL
+  - ✅ 占用内存小（流式写入）
+  - ❌ 可读性差，不便人工编辑
+
+  ---
+  方案二：YAML/JSON 序列化
+
+  备份格式：
+  # backup_20250214.yml
+  metadata:
+    version: "1.0.3"
+    created: "2025-02-14T14:30:22"
+    database_type: "h2"  # 或 mysql
+    tables:
+      - shop_items
+      - player_item_limits
+
+  data:
+    shop_items:
+      - id: "diamond_shop"
+        item_key: "minecraft:diamond"
+        buy_price: 100.0
+        stock: -1
+        # ...
+
+    player_item_limits:
+      - player_uuid: "xxx"
+        item_id: "vip_rank"
+        buy_count: 1
+
+  恢复逻辑：
+  // 1. 解析 YAML
+  // 2. 逐表对比结构（字段数量、类型）
+  // 3. 插入数据（使用现有 ShopManager.saveItem() 逻辑）
+
+  优缺点：
+  - ✅ 可读性好，可手动编辑
+  - ✅ 跨版本兼容性好（字段缺失可忽略）
+  - ❌ 大数据量时慢（交易记录可能几万条）
+  - ❌ 内存占用高
+
+  ---
+  方案三：分层备份策略（推荐组合）
+
+  自动分层：
+
+  // 1. 实时备份（热备份）
+  // - 每次数据变更时写入 .journal 文件
+  // - 用于崩溃恢复
+
+  // 2. 每日快照（Daily Snapshot）
+  // - 每天凌晨自动备份 CONFIG + STATE 表
+  // - 保留最近7天
+
+  // 3. 手动全量备份（Manual Full）
+  // - 管理员命令触发
+  // - 包含所有表，长期存储
+
+  备份命令设计：
+
+  # 备份
+  /foliashop backup           # 快速备份（配置+状态）
+  /foliashop backup full      # 全量备份（包含交易记录）
+  /foliashop backup export    # 导出为 YAML（可读格式）
+
+  # 恢复
+  /foliashop restore          # 列出可用备份
+  /foliashop restore <id>     # 恢复到指定备份
+  /foliashop restore <id> preview  # 预览差异（不实际恢复）
+
+  # 清理
+  /foliashop backup clean 7   # 清理7天前的备份
+
+  ---
+  关键设计决策
+
+  1. 备份文件存储
+  plugins/FoliaShop/backups/
+    ├── auto/
+    │   ├── backup_20250214_000000.sql
+    │   └── backup_20250213_000000.sql
+    ├── manual/
+    │   └── backup_20250214_before_update.sql
+    └── export/
+        └── shop_export_20250214.yml
+
+  2. 并发安全
+  - 备份时加全局写锁（短时间阻塞购买/抽奖）
+  - 或使用数据库事务隔离级别（READ COMMITTED）
+  - 大表（transactions）使用流式查询，避免内存溢出
+
+  3. 跨数据库兼容
+  - H2 → MySQL：通过通用 SQL 或中间格式
+  - MySQL → H2：同上
+
+  4. 恢复安全机制
+  - 恢复前自动创建当前状态的 "emergency_backup"
+  - 支持 "dry run" 模式（预览变化）
+  - 恢复后刷新所有 Manager 的内存缓存
+
+  ---
+  实施建议
+
+  阶段一：基础功能
+  1. 实现 DatabaseBackupManager 类
+  2. 支持 H2 的 SCRIPT TO 备份和 RUNSCRIPT FROM 恢复
+  3. 添加 /foliashop backup 和 /foliashop restore 命令
+
+  阶段二：增强功能
+  1. MySQL 支持（使用 mysqldump 或手写导出）
+  2. YAML 导出（便于人工编辑商品配置）
+  3. 自动清理旧备份
+  4. 备份文件压缩（gzip）
+
+  阶段三：高级功能
+  1. 增量备份（只备份变更的表）
+  2. 定时自动备份
+  3. 远程存储（FTP/S3）
+  4. 跨服务器迁移工具
+
+  ---
+  你想先做哪个方案？我推荐 方案三的分层策略，先实现手动 SQL
+  备份/恢复，再逐步添加自动功能。
+
+✻ Cogitated for 53s
+
+❯ 只需要手动备份SQL导入/导出。要支持从H2备份，mysql导入或者反过来 
+
+● 好的，我来实现一个简单的手动 SQL 导入/导出功能，支持 H2 和 MySQL 互导。
+
+● Write(src/main/java/dev/user/shop/database/BackupManager.java)
+  ⎿  Wrote 396 lines to
+     src/main/java/dev/user/shop/database/BackupManager.java
+     package dev.user.shop.database;
+
+     import dev.user.shop.FoliaShopPlugin;
+     import org.bukkit.Bukkit;
+
+     import java.io.BufferedReader;
+     import java.io.BufferedWriter;
+     import java.io.File;
+     import java.io.FileReader;
+     import java.io.FileWriter;
+     … +386 lines (ctrl+o to expand)
+
+● 现在在 FoliaShopCommand 中添加导出/导入命令。
+
+● Read 1 file (ctrl+o to expand)
+  ⎿  Found 5 new diagnostic issues in 1 file (ctrl+o to expand)
+
+● 先修复 BackupManager 的编译错误。
+
+● Update(src/main/java/dev/user/shop/database/BackupManager.java)
+  ⎿  Added 1 line, removed 3 lines
+      61       * @param callback 回调函数，参数为导出的文件路径（null    
+          表示失败）                                                     
+      62       */                                                        
+      63      public void exportToSql(String[] tables, Consumer<File>    
+          callback) {                                                    
+      64 -        if (tables == null) {                                  
+      65 -            tables = getDefaultTables();                       
+      66 -        }                                                      
+      64 +        final String[] exportTables = (tables == null) ?       
+         +getDefaultTables() : tables;                                   
+      65                                                                 
+      66          String timestamp = new                                 
+          SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());        
+      67          File backupFile = new File(backupDir, "backup_" +      
+          timestamp + ".sql");                                           
+
+● Update(src/main/java/dev/user/shop/database/BackupManager.java)
+  ⎿  Added 2 lines, removed 2 lines
+      72                  writer.write("-- FoliaShop Database            
+          Backup\n");                                                    
+      73                  writer.write("-- Generated: " + new Date() +   
+          "\n");                                                         
+      74                  writer.write("-- Source Database: " +          
+          (plugin.getDatabaseManager().isMySQL() ? "MySQL" : "H2") +     
+          "\n");                                                         
+      75 -                writer.write("-- Tables: " + String.join(", ", 
+         -tables) + "\n");                                               
+      75 +                writer.write("-- Tables: " + String.join(", ", 
+         +exportTables) + "\n");                                         
+      76                  writer.write("--                               
+          ============================================\n\n");            
+      77                                                                 
+      78                  // 禁用外键检查（如果有的话）                  
+     ...
+      83                      writer.write("SET REFERENTIAL_INTEGRITY    
+          FALSE;\n\n");                                                  
+      84                  }                                              
+      85                                                                 
+      86 -                for (String table : tables) {                  
+      86 +                for (String table : exportTables) {            
+      87                      exportTable(conn, writer, table);          
+      88                  }                                              
+      89                                                                 
+
+● Read 1 file (ctrl+o to expand)
+
+● Update(src/main/java/dev/user/shop/command/FoliaShopCommand.java)
+  ⎿  Added 14 lines
+      154                  }                                             
+      155                  handleStatsCommand(sender, args);             
+      156              }                                                 
+      157 +            case "export" -> {                                
+      158 +                if (!sender.hasPermission("foliashop.admin")) 
+          + {                                                            
+      159 +                    sender.sendMessage(plugin.getShopConfig() 
+          +.getComponent("no-permission"));                              
+      160 +                    return true;                              
+      161 +                }                                             
+      162 +                handleExportCommand(sender, args);            
+      163 +            }                                                 
+      164 +            case "import" -> {                                
+      165 +                if (!sender.hasPermission("foliashop.admin")) 
+          + {                                                            
+      166 +                    sender.sendMessage(plugin.getShopConfig() 
+          +.getComponent("no-permission"));                              
+      167 +                    return true;                              
+      168 +                }                                             
+      169 +                handleImportCommand(sender, args);            
+      170 +            }                                                 
+      171              case "help" -> sendHelp(sender);                  
+      172              default -> sender.sendMessage("§c未知命令。使用   
+           /foliashop help 查看帮助。");                                 
+      173          }                                                     
+
+● Update(src/main/java/dev/user/shop/command/FoliaShopCommand.java)
+  ⎿  Added 2 lines
+      194                  completions.add("unbindblock");               
+      195                  completions.add("listblocks");                
+      196                  completions.add("exportshop");                
+      197 +                completions.add("export");                    
+      198 +                completions.add("import");                    
+      199                  completions.add("stats");                     
+      200              }                                                 
+      201              return completions.stream()                       
+
+● Read 1 file (ctrl+o to expand)
+
+● Update(src/main/java/dev/user/shop/command/FoliaShopCommand.java)
+  ⎿  Error editing file
+
+● Read 1 file (ctrl+o to expand)
+
+● Update(src/main/java/dev/user/shop/command/FoliaShopCommand.java)
+  ⎿  Added 30 lines
+      232              }                                                 
+      233          }                                                     
+      234                                                                
+      235 +        // export 命令的参数补全                              
+      236 +        if (args.length == 2 &&                               
+          +args[0].equalsIgnoreCase("export")) {                         
+      237 +            if (sender.hasPermission("foliashop.admin")) {    
+      238 +                return List.of("full", "config",              
+          +"state").stream()                                             
+      239 +                    .filter(s ->                              
+          +s.toLowerCase().startsWith(args[1].toLowerCase()))            
+      240 +                    .toList();                                
+      241 +            }                                                 
+      242 +        }                                                     
+      243 +                                                              
+      244 +        // import 命令的参数补全                              
+      245 +        if (args.length == 2 &&                               
+          +args[0].equalsIgnoreCase("import")) {                         
+      246 +            if (sender.hasPermission("foliashop.admin")) {    
+      247 +                List<String> files =                          
+          +plugin.getBackupManager().listBackups().stream()              
+      248 +                    .map(f -> f.getName().replace(".sql",     
+          +""))                                                          
+      249 +                    .limit(10)                                
+      250 +                    .toList();                                
+      251 +                return files.stream()                         
+      252 +                    .filter(s ->                              
+          +s.toLowerCase().startsWith(args[1].toLowerCase()))            
+      253 +                    .toList();                                
+      254 +            }                                                 
+      255 +        }                                                     
+      256 +                                                              
+      257 +        if (args.length == 3 &&                               
+          +args[0].equalsIgnoreCase("import")) {                         
+      258 +            if (sender.hasPermission("foliashop.admin")) {    
+      259 +                return List.of("replace", "merge").stream()   
+      260 +                    .filter(s ->                              
+          +s.toLowerCase().startsWith(args[2].toLowerCase()))            
+      261 +                    .toList();                                
+      262 +            }                                                 
+      263 +        }                                                     
+      264 +                                                              
+      265          // stats 命令的参数补全                               
+      266          if (args[0].equalsIgnoreCase("stats") &&              
+           sender.hasPermission("foliashop.admin")) {                    
+      267              if (args.length == 2) {                           
+
+● Update(src/main/java/dev/user/shop/command/FoliaShopCommand.java)
+  ⎿  Added 2 lines
+      317              sender.sendMessage("§e/foliashop unbindblock §7-  
+           解绑看向的方块");                                             
+      318              sender.sendMessage("§e/foliashop listblocks       
+           [machineId] §7- 列出方块绑定");                               
+      319              sender.sendMessage("§e/foliashop exportshop §7-   
+           导出商店数据到 backup_shop.yml");                             
+      320 +            sender.sendMessage("§e/foliashop export           
+          +[full|config|state] §7- 导出数据库备份");                     
+      321 +            sender.sendMessage("§e/foliashop import <文件名>  
+          +[replace|merge] §7- 从备份恢复数据库");                       
+      322              sender.sendMessage("§e/foliashop stats            
+           [-|<玩家名>] <machineId> <rewardId> §7- 查询奖品统计");       
+      323          }                                                     
+      324                                                                
+           sender.sendMessage("§6==================================");   
+
+● 现在需要在 FoliaShopPlugin 中初始化 BackupManager。
+
+● Read 1 file (ctrl+o to expand)
+
+● Update(src/main/java/dev/user/shop/FoliaShopPlugin.java)
+  ⎿  Added 1 line
+       4  import dev.user.shop.command.GachaCommand;                     
+       5  import dev.user.shop.command.ShopCommand;                      
+       6  import dev.user.shop.config.ShopConfig;                        
+       7 +import dev.user.shop.database.BackupManager;                   
+       8  import dev.user.shop.database.DatabaseManager;                 
+       9  import dev.user.shop.database.DatabaseQueue;                   
+      10  import dev.user.shop.economy.EconomyManager;                   
+
+● Update(src/main/java/dev/user/shop/FoliaShopPlugin.java)
+  ⎿  Added 1 line
+      34      private volatile GachaBlockManager gachaBlockManager;      
+      35      private volatile GachaDisplayManager gachaDisplayManager;  
+      36      private PurchaseManager purchaseManager;                   
+      37 +    private BackupManager backupManager;                       
+      38                                                                 
+      39      @Override                                                  
+      40      public void onEnable() {                                   
+
+● Read 1 file (ctrl+o to expand)
+  ⎿  Found 1 new diagnostic issue in 1 file (ctrl+o to expand)
+
+● Update(src/main/java/dev/user/shop/FoliaShopPlugin.java)
+  ⎿  Added 3 lines
+      87          // 初始化购买事务管理器                                
+      88          this.purchaseManager = new PurchaseManager(this);      
+      89                                                                 
+      90 +        // 初始化备份管理器                                    
+      91 +        this.backupManager = new BackupManager(this);          
+      92 +                                                               
+      93          // 延迟初始化商店和扭蛋管理器（等待 CraftEngine        
+          注册物品）                                                     
+      94                                                                 
+          getServer().getGlobalRegionScheduler().runDelayed(this, t -> { 
+      95              // 初始化商店管理器                                
+
+● Read 1 file (ctrl+o to expand)
+
+● Update(src/main/java/dev/user/shop/FoliaShopPlugin.java)
+  ⎿  Added 4 lines
+      246      public PurchaseManager getPurchaseManager() {             
+      247          return purchaseManager;                               
+      248      }                                                         
+      249 +                                                              
+      250 +    public BackupManager getBackupManager() {                 
+      251 +        return backupManager;                                 
+      252 +    }                                                         
+      253  }                                                             
+
+● Read 1 file (ctrl+o to expand)
+
+● Update(src/main/java/dev/user/shop/command/FoliaShopCommand.java)
+  ⎿  Added 113 lines
+      589          );                                                    
+      590          return result != null ? result.getHitBlock() : null;  
+      591      }                                                         
+      592 +                                                              
+      593 +    private void handleExportCommand(CommandSender sender,    
+          +String[] args) {                                              
+      594 +        String type = args.length >= 2 ?                      
+          +args[1].toLowerCase() : "config";                             
+      595 +                                                              
+      596 +        String[] tables;                                      
+      597 +        switch (type) {                                       
+      598 +            case "full" -> {                                  
+      599 +                tables = new String[]{                        
+      600 +                    "shop_items", "gacha_block_bindings",     
+      601 +                    "player_item_limits", "gacha_pity",       
+          +"daily_limits",                                               
+      602 +                    "transactions", "gacha_records"           
+      603 +                };                                            
+      604 +            }                                                 
+      605 +            case "config" -> {                                
+      606 +                tables = new String[]{"shop_items",           
+          +"gacha_block_bindings"};                                      
+      607 +            }                                                 
+      608 +            case "state" -> {                                 
+      609 +                tables = new String[]{                        
+      610 +                    "shop_items", "gacha_block_bindings",     
+      611 +                    "player_item_limits", "gacha_pity",       
+          +"daily_limits"                                                
+      612 +                };                                            
+      613 +            }                                                 
+      614 +            default -> {                                      
+      615 +                sender.sendMessage("§c用法: /foliashop export 
+          + [full|config|state]");                                       
+      616 +                sender.sendMessage("§7full -                  
+          +导出所有数据（包含日志）");                                   
+      617 +                sender.sendMessage("§7config -                
+          +只导出配置（商品、方块绑定）");                               
+      618 +                sender.sendMessage("§7state -                 
+          +导出配置和玩家状态（不含日志）");                             
+      619 +                return;                                       
+      620 +            }                                                 
+      621 +        }                                                     
+      622 +                                                              
+      623 +                                                              
+          +sender.sendMessage("§e正在导出数据库备份，请稍候...");        
+      624 +                                                              
+      625 +        plugin.getBackupManager().exportToSql(tables, file -> 
+          + {                                                            
+      626 +            if (file != null) {                               
+      627 +                sender.sendMessage("§a✔ 备份成功: §e" +       
+          +file.getName());                                              
+      628 +                sender.sendMessage("§7位置: " +               
+          +file.getAbsolutePath());                                      
+      629 +            } else {                                          
+      630 +                sender.sendMessage("§c✘                       
+          +备份失败，请查看控制台日志");                                 
+      631 +            }                                                 
+      632 +        });                                                   
+      633 +    }                                                         
+      634 +                                                              
+      635 +    private void handleImportCommand(CommandSender sender,    
+          +String[] args) {                                              
+      636 +        if (args.length < 2) {                                
+      637 +            sender.sendMessage("§c用法: /foliashop import     
+          +<文件名> [replace|merge]");                                   
+      638 +            sender.sendMessage("§7文件名不需要包含 .sql       
+          +后缀");                                                       
+      639 +            sender.sendMessage("§7replace -                   
+          +清空现有数据后导入");                                         
+      640 +            sender.sendMessage("§7merge -                     
+          +保留现有数据，跳过冲突");                                     
+      641 +            sender.sendMessage("§e可用备份:");                
+      642 +            List<File> backups =                              
+          +plugin.getBackupManager().listBackups();                      
+      643 +            if (backups.isEmpty()) {                          
+      644 +                sender.sendMessage("§7  暂无备份文件");       
+      645 +            } else {                                          
+      646 +                int index = 1;                                
+      647 +                for (File f : backups) {                      
+      648 +                    sender.sendMessage("§7  " + index + ".    
+          +§e" + f.getName());                                           
+      649 +                    if (index++ >= 5) break;                  
+      650 +                }                                             
+      651 +                if (backups.size() > 5) {                     
+      652 +                    sender.sendMessage("§7  ... 还有 " +      
+          +(backups.size() - 5) + " 个");                                
+      653 +                }                                             
+      654 +            }                                                 
+      655 +            return;                                           
+      656 +        }                                                     
+      657 +                                                              
+      658 +        String fileName = args[1];                            
+      659 +        if (!fileName.endsWith(".sql")) {                     
+      660 +            fileName += ".sql";                               
+      661 +        }                                                     
+      662 +                                                              
+      663 +        File backupFile = new                                 
+          +File(plugin.getBackupManager().getBackupDir(), fileName);     
+      664 +        if (!backupFile.exists()) {                           
+      665 +            sender.sendMessage("§c备份文件不存在: " +         
+          +fileName);                                                    
+      666 +            return;                                           
+      667 +        }                                                     
+      668 +                                                              
+      669 +        dev.user.shop.database.BackupManager.ImportMode mode  
+          += dev.user.shop.database.BackupManager.ImportMode.REPLACE;    
+      670 +        if (args.length >= 3) {                               
+      671 +            try {                                             
+      672 +                mode = dev.user.shop.database.BackupManager.I 
+          +mportMode.valueOf(args[2].toUpperCase());                     
+      673 +            } catch (IllegalArgumentException e) {            
+      674 +                sender.sendMessage("§c无效的导入模式，使用    
+          +replace 或 merge");                                           
+      675 +                return;                                       
+      676 +            }                                                 
+      677 +        }                                                     
+      678 +                                                              
+      679 +        String finalFileName = fileName;                      
+      680 +        if (mode ==                                           
+          +dev.user.shop.database.BackupManager.ImportMode.REPLACE) {    
+      681 +            sender.sendMessage("§c⚠ 警告:                     
+          +这将清空现有数据并导入备份！");                               
+      682 +            sender.sendMessage("§e正在导入: §7" +             
+          +finalFileName);                                               
+      683 +        } else {                                              
+      684 +            sender.sendMessage("§e正在合并导入: §7" +         
+          +finalFileName);                                               
+      685 +        }                                                     
+      686 +                                                              
+      687 +        plugin.getBackupManager().importFromSql(backupFile,   
+          +mode, rows -> {                                               
+      688 +            if (rows >= 0) {                                  
+      689 +                sender.sendMessage("§a✔ 导入成功，共导入 §e"  
+          + + rows + " §a条记录");                                       
+      690 +                                                              
+      691 +                // 重新加载管理器以刷新内存数据               
+      692 +                if (plugin.getShopManager() != null) {        
+      693 +                    plugin.getShopManager().reload();         
+      694 +                }                                             
+      695 +                if (plugin.getGachaBlockManager() != null) {  
+      696 +                    plugin.getGachaBlockManager().reload();   
+      697 +                }                                             
+      698 +                                                              
+      699 +                                                              
+          +sender.sendMessage("§7已重新加载商店和扭蛋数据");             
+      700 +            } else {                                          
+      701 +                sender.sendMessage("§c✘                       
+          +导入失败，请查看控制台日志");                                 
+      702 +            }                                                 
+      703 +        });                                                   
+      704 +    }                                                         
+      705  }                                                             
+
+● Searched for 1 pattern, read 1 file (ctrl+o to expand)
+  ⎿  Found 4 new diagnostic issues in 1 file (ctrl+o to expand)
+
+● Update(src/main/java/dev/user/shop/command/FoliaShopCommand.java)
+  ⎿  Added 1 line
+      15  import org.bukkit.entity.Player;                               
+      16  import org.bukkit.util.RayTraceResult;                         
+      17                                                                 
+      18 +import java.io.File;                                           
+      19  import java.util.ArrayList;                                    
+      20  import java.util.List;                                         
+      21  import java.util.UUID;                                         
+
+● Read 1 file (ctrl+o to expand)
+  ⎿  Found 1 new diagnostic issue in 1 file (ctrl+o to expand)
+
+● Update(src/main/java/dev/user/shop/gacha/GachaBlockManager.java)
+  ⎿  Added 7 lines
+      36      }                                                          
+      37                                                                 
+      38      /**                                                        
+      39 +     * 重新加载方块绑定（用于导入后刷新）                      
+      40 +     */                                                        
+      41 +    public void reload() {                                     
+      42 +        loadBindingsAsync();                                   
+      43 +    }                                                          
+      44 +                                                               
+      45 +    /**                                                        
+      46       * 从数据库异步加载所有绑定（不阻塞）                      
+      47       */                                                        
+      48      private void loadBindingsAsync() {                         
+
+● Bash(./gradlew shadowJar 2>&1 | tail -30)
+  ⎿  > Task :compileJava
+     Note: /home/cx/mc_projects/folia_shop/src/main/java/dev/user/shop/shop
+     /ShopManager.java uses or overrides a deprecated API.
+     … +11 lines (ctrl+o to expand)
+  ⎿  (timeout 2m)
+
+● 构建成功！已实现手动 SQL 导入/导出功能。
+
+  新增命令
+
+  # 导出数据库备份
+  /foliashop export [full|config|state]
+    full   - 导出所有数据（包含交易日志、抽奖记录）
+    config - 只导出配置表（商品、方块绑定）【默认】
+    state  - 导出配置+玩家状态（限购、保底、每日限制）
+
+  # 导入数据库备份（支持 H2↔MySQL 互导）
+  /foliashop import <文件名> [replace|merge]
+    replace - 清空现有数据后导入【默认】
+    merge   - 保留现有数据，跳过冲突记录
+
+  备份文件位置
+
+  plugins/FoliaShop/backups/
+    └── backup_20250214_143022.sql
+
+  互导兼容性处理
+
+  - 自动语法转换：导出时生成标准 SQL，导入时根据目标数据库自动调整
+  - 引号处理：MySQL 使用 `，H2 使用 "
+  - 自增 ID 跳过：INSERT 语句不包含自增 ID 列，让数据库自己分配
+  - 事务包裹：导入失败自动回滚，保证数据一致性
+
+  导入后自动刷新
+
+  导入完成后会自动调用：
+  - ShopManager.reload() - 刷新商品数据
+  - GachaBlockManager.reload() - 刷新方块绑定
+
+  使用示例
+
+  # 从 H2 导出，导入到 MySQL
+  # 1. H2 服务器执行导出
+  /foliashop export state
+
+  # 2. 复制备份文件到 MySQL 服务器的 backups 目录
+  # 3. MySQL 服务器执行导入
+  /foliashop import backup_20250214_143022 replace
+
+✻ Worked for 4m 19s

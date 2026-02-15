@@ -5,8 +5,8 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.TextDisplay;
 import org.bukkit.util.BlockVector;
 
 import java.sql.Connection;
@@ -32,6 +32,13 @@ public class GachaBlockManager {
 
     public GachaBlockManager(FoliaShopPlugin plugin) {
         this.plugin = plugin;
+        loadBindingsAsync();
+    }
+
+    /**
+     * 重新加载方块绑定（用于导入后刷新）
+     */
+    public void reload() {
         loadBindingsAsync();
     }
 
@@ -214,8 +221,9 @@ public class GachaBlockManager {
                     return false;
                 }
             }, success -> {
-                // 调度到区域线程移除展示实体（范围删除 Y 轴 0-2 格内所有 TextDisplay）
+                // 调度到区域线程移除展示实体（范围删除 Y 轴 cleanupRange 格内所有 ItemDisplay）
                 World world = Bukkit.getWorld(binding.getWorldUuid());
+
                 if (world != null) {
                     Location baseLoc = new Location(
                         world,
@@ -233,8 +241,8 @@ public class GachaBlockManager {
                         // 1. 先清理绑定的 ItemDisplay（从内存和数据库中移除）
                         plugin.getGachaDisplayManager().removeDisplay(binding);
 
-                        // 2. 再清理范围内的所有 TextDisplay（其他展示实体）
-                        for (TextDisplay display : world.getEntitiesByClass(TextDisplay.class)) {
+                        // 2. 清理范围内的所有 ItemDisplay（包括遗留的）
+                        for (ItemDisplay display : world.getEntitiesByClass(ItemDisplay.class)) {
                             Location loc = display.getLocation();
                             // Y轴范围判断
                             if (loc.getY() >= minY && loc.getY() <= maxY) {

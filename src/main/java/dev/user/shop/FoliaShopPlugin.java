@@ -4,6 +4,7 @@ import dev.user.shop.command.FoliaShopCommand;
 import dev.user.shop.command.GachaCommand;
 import dev.user.shop.command.ShopCommand;
 import dev.user.shop.config.ShopConfig;
+import dev.user.shop.database.BackupManager;
 import dev.user.shop.database.DatabaseManager;
 import dev.user.shop.database.DatabaseQueue;
 import dev.user.shop.economy.EconomyManager;
@@ -33,6 +34,7 @@ public class FoliaShopPlugin extends JavaPlugin {
     private volatile GachaBlockManager gachaBlockManager;
     private volatile GachaDisplayManager gachaDisplayManager;
     private PurchaseManager purchaseManager;
+    private BackupManager backupManager;
 
     @Override
     public void onEnable() {
@@ -84,6 +86,9 @@ public class FoliaShopPlugin extends JavaPlugin {
 
         // 初始化购买事务管理器
         this.purchaseManager = new PurchaseManager(this);
+
+        // 初始化备份管理器
+        this.backupManager = new BackupManager(this);
 
         // 延迟初始化商店和扭蛋管理器（等待 CraftEngine 注册物品）
         getServer().getGlobalRegionScheduler().runDelayed(this, t -> {
@@ -240,5 +245,9 @@ public class FoliaShopPlugin extends JavaPlugin {
 
     public PurchaseManager getPurchaseManager() {
         return purchaseManager;
+    }
+
+    public BackupManager getBackupManager() {
+        return backupManager;
     }
 }
