@@ -93,28 +93,28 @@ foliashop.use:          # 使用基础命令（打开主菜单）
 foliashop.shop.use:     # 使用商店功能
   default: true
 
-foliashop.shop.sell:    # 出售物品
-  default: true
+foliashop.shop.sell:    # 出售物品给系统
+  default: op
 
 foliashop.gacha.use:    # 使用扭蛋功能
-  default: true
+  default: op
 ```
 
 ### 管理员权限
 ```yaml
 foliashop.admin:        # 管理员权限（编辑商店、重载配置等）
   default: op
+  children:
+    foliashop.shop.admin: true   # 商店管理
+    foliashop.gacha.admin: true  # 扭蛋管理
 ```
 
-### 权限继承关系
-```
-foliashop.admin
-  └─ 包含所有其他权限
-
-foliashop.use
-  └─ foliashop.shop.use
-  └─ foliashop.gacha.use
-```
+### 权限说明
+- `foliashop.use` - 基础命令权限，默认所有玩家拥有
+- `foliashop.shop.use` - 商店使用权限，默认所有玩家拥有
+- `foliashop.shop.sell` - 出售物品权限，默认仅 OP（可在配置中启用）
+- `foliashop.gacha.use` - 扭蛋使用权限，默认仅 OP（可在配置中启用）
+- `foliashop.admin` - 管理员权限，包含商店和扭蛋管理子权限
 
 ## 👑 管理员功能
 
