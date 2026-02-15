@@ -14,16 +14,26 @@
 - 🔧 支持 CraftEngine 自定义物品（CE物品）
 - 📜 交易记录（玩家可查询最近20次）
 - ⏰ **每日购买限额**（每个物品独立配置）
+- 🔒 **玩家终身限购**（每个物品独立配置）
+- 💎 **PlayerPoints 点券支付**（支持金币+点券混合支付）
+- 🏷️ **NBT 组件支持**（附魔、自定义名称、Lore、自定义数据）
+- ⚡ **纯命令商品**（给予权限、执行命令，可不给予物品）
 
 ### 扭蛋系统
 - 🎰 多扭蛋机支持
 - 🎯 概率配置
 - 🔧 支持 CraftEngine 自定义物品（CE物品）
 - ✨ 抽奖动画（单抽 + 10连抽）
-- 🛡️ **多段保底系统**（支持多档保底规则）
-- 📢 稀有奖品广播
-- 👁️ 奖品预览
+- 🛡️ **软保底机制**（线性概率增长）
+- 📢 稀有奖品广播（MiniMessage格式）
+- 👁️ 奖品预览（按概率排序）
 - 📊 抽奖记录
+- 🧊 **方块绑定**（将扭蛋机绑定到方块，右键交互）
+- 🎨 **展示实体**（悬浮物品动画、粒子效果）
+
+### 数据库功能
+- 💾 **数据库备份/恢复**（支持 H2 和 MySQL 互导）
+- 🔀 支持 H2（本地）和 MySQL（跨服）
 
 ## 📋 依赖要求
 
@@ -34,12 +44,17 @@
 | XConomy | 2.25+ | 经济系统 |
 | CraftEngine | 0.0.67+ | 自定义物品系统 |
 
+### 可选插件（软依赖）
+| 插件 | 版本 | 用途 |
+|------|------|------|
+| PlayerPoints | 3.2+ | 点券系统 |
+
 ## 🚀 安装
 
-1. 下载最新版本的 `folia_shop-1.0.0.jar`
+1. 下载最新版本的 `folia_shop-1.0.3.jar`
 2. 将 JAR 文件放入服务器的 `plugins` 文件夹
 3. 重启服务器或加载插件
-4. 编辑 `plugins/FoliaShop/config.yml` 配置商店和扭蛋
+4. 编辑 `plugins/FoliaShop/config.yml` 配置数据库连接
 5. 执行 `/foliashop reload` 重载配置
 
 ## 📖 命令
@@ -60,6 +75,13 @@
 | `/foliashop admin` | 打开商店管理界面 | `foliashop.admin` |
 | `/foliashop reset` | 清空数据库并从配置重新加载 | `foliashop.admin` |
 | `/foliashop clean <天数>` | 清理旧数据（5/10/30天） | `foliashop.admin` |
+| `/foliashop bindblock <machineId>` | 将看向的方块绑定到扭蛋机 | `foliashop.admin` |
+| `/foliashop unbindblock` | 解绑看向的方块 | `foliashop.admin` |
+| `/foliashop listblocks [machineId]` | 列出方块绑定 | `foliashop.admin` |
+| `/foliashop export [full\|config\|state]` | 导出数据库备份 | `foliashop.admin` |
+| `/foliashop import <文件名> [replace\|merge]` | 从备份恢复数据库 | `foliashop.admin` |
+| `/foliashop stats [-\|玩家名] <machineId> <rewardId>` | 查询奖品统计 | `foliashop.admin` |
+| `/foliashop exportshop` | 导出商店数据到 YAML | `foliashop.admin` |
 
 ## 🔐 权限节点
 
@@ -120,6 +142,40 @@ foliashop.use
 - 抽奖记录
 - 过期购买计数
 
+### 数据库备份/恢复
+管理员可以使用备份命令导出和恢复数据库：
+
+```bash
+# 导出备份
+/foliashop export           # 导出配置+状态（推荐）
+/foliashop export config    # 只导出配置（商品、方块绑定）
+/foliashop export state     # 导出配置+玩家状态（限购、保底）
+/foliashop export full      # 导出所有数据（包含日志）
+
+# 恢复备份
+/foliashop import backup_20250215_143022      # 清空现有数据后导入
+/foliashop import backup_20250215_143022 merge # 合并导入，跳过冲突
+
+# 查看可用备份
+/foliashop import  # 不填文件名会列出所有备份
+```
+
+**备份文件位置：** `plugins/FoliaShop/backups/`
+
+**跨数据库迁移：** 支持从 H2 导出，导入到 MySQL（或反过来）
+
+### 扭蛋方块绑定
+管理员可以将扭蛋机绑定到方块，玩家右键点击方块即可打开扭蛋界面：
+
+```bash
+/foliashop bindblock normal      # 将看向的方块绑定到 normal 扭蛋机
+/foliashop unbindblock           # 解绑看向的方块
+/foliashop listblocks            # 列出所有方块绑定
+/foliashop listblocks normal     # 列出 normal 扭蛋机的方块绑定
+```
+
+绑定方块后会自动生成展示实体（悬浮的物品图标）。
+
 ## ⚙️ 配置说明
 
 ### 基础配置
@@ -149,22 +205,59 @@ shop:
 ```yaml
 shop:
   items:
+    # 基础商品
     diamond_shop:
-      item: "minecraft:diamond"  # 原版物品
+      item: "minecraft:diamond"
       buy-price: 100.0
       sell-price: 50.0
       stock: -1        # -1表示无限库存
-      daily-limit: 10  # 每日购买限额（0表示无限制）
+      daily-limit: 10  # 每日购买限额
       category: "misc"
       slot: 11
+
+    # CE自定义物品
     magic_sword_shop:
-      item: "craftengine:magic_sword"  # CE物品
+      item: "craftengine:magic_sword"
       buy-price: 1000.0
-      sell-price: 0.0  # 0表示不可出售
+      sell-price: 0.0
       stock: 10
-      daily-limit: 0   # 无购买限制
       category: "tools"
       slot: 13
+
+    # 带NBT组件的商品（附魔、自定义名称等）
+    enchanted_sword:
+      item: "minecraft:iron_sword"
+      buy-price: 500.0
+      buy-points: 100  # 需要100点券
+      sell-price: 0
+      daily-limit: 1
+      player-limit: 1  # 每个玩家终身限购1次
+      components:
+        - "minecraft:enchantments+{'minecraft:sharpness':5,'minecraft:unbreaking':3}"
+        - "minecraft:custom_name+\"§6传说铁剑\""
+        - "minecraft:lore+[\"§7商店限定版\"]"
+        - "minecraft:unbreakable+{}"
+
+    # 纯点券商品
+    vip_token:
+      item: "minecraft:emerald"
+      buy-price: 0
+      buy-points: 500
+      components:
+        - "minecraft:custom_name+\"§aVIP令牌\""
+
+    # 纯命令商品（给予权限，不给予物品）
+    vip_rank:
+      item: "minecraft:diamond_block"
+      buy-price: 10000
+      buy-points: 1000
+      stock: 10              # 全服限量10个
+      player-limit: 1        # 每人限购1次
+      give-item: false       # 不给予物品
+      commands:
+        - "lp user {player} parent addtemp vip 30d"
+      conditions:
+        - "!permission:group.vip"  # 已有VIP不能购买
 ```
 
 ### 扭蛋机配置示例
@@ -178,28 +271,46 @@ gacha:
       animation-duration-ten: 9  # 10连抽动画时长（秒）
       broadcast-rare: true
       broadcast-threshold: 0.05  # 概率低于此值时广播
-      # 多段保底配置（可选）
-      pity-rules:
-        - count: 10              # 10抽保底
-          max-probability: 0.1   # 概率≤0.1的奖品池
-        - count: 50              # 50抽保底
-          max-probability: 0.03  # 概率≤0.03的奖品池
-        - count: 90              # 90抽保底
-          max-probability: 0.01  # 概率≤0.01的奖品池
+      # 软保底配置（可选）
+      pity:
+        enabled: true
+        start: 70              # 70抽后开始增加保底概率
+        max: 90                # 90抽必出保底目标（硬保底）
+        target-max-probability: 0.05  # 概率≤5%的奖品为保底目标
+      # 展示实体配置（可选）
+      display-entity:
+        enabled: true
+        scale: 1.2
+        floating-animation: true
+        particle-effect:
+          type: STAR_RING      # 粒子效果类型
       rewards:
-        - id: "reward_1"
+        - id: "common_coal"
+          item: "minecraft:coal"
+          amount: 16
+          probability: 0.10
+          display-name: "煤炭"
+        - id: "rare_diamond"
           item: "minecraft:diamond"
           amount: 2
-          probability: 0.08
+          probability: 0.03
           display-name: "钻石礼包"
           broadcast: true
+        - id: "epic_sword"
+          item: "minecraft:diamond_sword"
+          amount: 1
+          probability: 0.01
+          display-name: "传说之剑"
+          broadcast: true
+          components:
+            - "minecraft:enchantments+{'minecraft:sharpness':5}"
+            - "minecraft:custom_name+\"§6传说之剑\""
 ```
 
-**多段保底说明**：
-- 每个规则使用 `count_maxProbability` 作为唯一标识（如 `10_0.10`）
-- 各规则独立计数，互不影响
-- 优先触发高档次保底（按 count 降序检查）
-- 触发保底后该规则计数重置为0，其他规则继续累积
+**软保底说明**：
+- `start`: 达到此抽数后，保底目标奖品的概率开始线性增长
+- `max`: 达到此抽数时，保底目标概率达到100%（必出）
+- 触发保底后计数器重置为0
 
 ## 🛠️ 构建
 
@@ -207,7 +318,7 @@ gacha:
 ./gradlew shadowJar
 ```
 
-构建后的 JAR 文件位于 `build/libs/folia_shop-1.0.0.jar`
+构建后的 JAR 文件位于 `build/libs/folia_shop-1.0.3.jar`
 
 ## 🏗️ 项目结构
 
@@ -243,6 +354,7 @@ folia_shop/
 | Folia-API | 1.21.11-R0.1-SNAPSHOT | PaperMC |
 | XConomyAPI | 2.25.1 | JitPack |
 | CraftEngine | 0.0.67 | Momirealms |
+| PlayerPoints | 3.2+ | GitHub |
 | HikariCP | 6.2.1 | Maven Central |
 | H2 | 2.3.232 | Maven Central |
 | MySQL Connector | 9.2.0 | Maven Central |
